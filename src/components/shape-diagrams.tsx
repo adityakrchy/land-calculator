@@ -1,10 +1,11 @@
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text as RNText } from 'react-native';
 import { ThemedText } from './themed-text';
 import Svg, { Path } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { generateTriangle, calculateInteriorAngles, type Point } from '@/utils/geometry';
 
 interface ShapeDiagramProps {
   shape: 'triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
@@ -89,32 +90,42 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         const sideCHighlight = getHighlightStyle(['sideC']);
 
         // Parse side lengths
-        let a = parseFloat(sides[0]);
-        let b = parseFloat(sides[1]);
-        let c = parseFloat(sides[2]);
+        let s0 = parseFloat(sides[0]); // Side A value
+        let s1 = parseFloat(sides[1]); // Side B value
+        let s2 = parseFloat(sides[2]); // Side C value
 
         const isValidTriangle =
-          !isNaN(a) && !isNaN(b) && !isNaN(c) &&
-          a > 0 && b > 0 && c > 0 &&
-          a + b > c && a + c > b && b + c > a;
+          !isNaN(s0) && !isNaN(s1) && !isNaN(s2) &&
+          s0 > 0 && s1 > 0 && s2 > 0 &&
+          s0 + s1 > s2 && s0 + s2 > s1 && s1 + s2 > s0;
 
         if (!isValidTriangle) {
-          // Generic fallback triangle if inputs are incomplete or invalid
-          a = 5; b = 6; c = 5;
+          s0 = 5; s1 = 6; s2 = 5;
         }
 
-        // Geometric calculation (base = b, placed on X axis)
-        const p1 = { x: 0, y: 0 };
-        const p2 = { x: b, y: 0 };
-        const x3 = (b * b + a * a - c * c) / (2 * b);
-        const y3 = Math.sqrt(Math.max(0, a * a - x3 * x3));
-        const p3 = { x: x3, y: y3 };
+        // Use the same triangle generation logic as plot.tsx (geometry.ts)
+        // generateTriangle(first, second, third) produces:
+        //   AB = first param, BC = second param, AC = third param
+        const modelPoints = generateTriangle(s0, s1, s2);
+        // modelPoints[0] = A, modelPoints[1] = B, modelPoints[2] = C
+
+        // Compute interior angles using the same logic as plot.tsx
+        const angles = isValidTriangle ? calculateInteriorAngles(modelPoints) : [60, 60, 60];
+        const angleA = angles[0]; // ∠A at vertex A
+        const angleB = angles[1]; // ∠B at vertex B
+        const angleC = angles[2]; // ∠C at vertex C
+
+        // Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+        const rotPoints = modelPoints.map(p => ({ x: p.y, y: -p.x }));
+        const r1 = rotPoints[0]; // A
+        const r2 = rotPoints[1]; // B
+        const r3 = rotPoints[2]; // C
 
         // Bounding box
-        const minX = Math.min(0, b, x3);
-        const maxX = Math.max(0, b, x3);
-        const minY = 0;
-        const maxY = y3;
+        const minX = Math.min(r1.x, r2.x, r3.x);
+        const maxX = Math.max(r1.x, r2.x, r3.x);
+        const minY = Math.min(r1.y, r2.y, r3.y);
+        const maxY = Math.max(r1.y, r2.y, r3.y);
 
         const w = maxX - minX;
         const h = maxY - minY;
@@ -137,12 +148,13 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
           y: 180 - ((p.y - minY) * scale + offsetY)
         });
 
-        const v1 = transformPoint(p1);
-        const v2 = transformPoint(p2);
-        const v3 = transformPoint(p3);
+        // Screen coordinates of vertices
+        const vA = transformPoint(r1);   // vertex A
+        const vB = transformPoint(r2);   // vertex B
+        const vC = transformPoint(r3);   // vertex C
 
-        const centroidX = (v1.x + v2.x + v3.x) / 3;
-        const centroidY = (v1.y + v2.y + v3.y) / 3;
+        const centroidX = (vA.x + vB.x + vC.x) / 3;
+        const centroidY = (vA.y + vB.y + vC.y) / 3;
 
         const renderDynamicLine = (start: {x: number, y: number}, end: {x: number, y: number}, styleHighlight: any, label: string) => {
           const length = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
@@ -165,12 +177,9 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
           );
         };
 
-        // Internal Angles (Law of Cosines)
-        const angleA = Math.acos((b * b + c * c - a * a) / (2 * b * c)) * (180 / Math.PI);
-        const angleB = Math.acos((a * a + c * c - b * b) / (2 * a * c)) * (180 / Math.PI);
-        const angleC = Math.acos((a * a + b * b - c * c) / (2 * a * b)) * (180 / Math.PI);
+        // Angles are now computed by calculateInteriorAngles above (same as plot.tsx)
 
-        // Helper to push text outward from midpoint
+        // Helper to push text outward from centroid (in screen space)
         const getLabelPos = (p: {x: number, y: number}, distanceAway: number) => {
           const vx = p.x - centroidX;
           const vy = p.y - centroidY;
@@ -178,7 +187,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
           return { x: p.x + (vx / len) * distanceAway, y: p.y + (vy / len) * distanceAway };
         };
 
-        // Helper to push text inward from vertex
+        // Helper to push text inward from vertex (in screen space)
         const getInteriorPos = (p: {x: number, y: number}, distanceInside: number) => {
             const vx = centroidX - p.x;
             const vy = centroidY - p.y;
@@ -200,57 +209,104 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
           return <Path d={`M ${A.x} ${A.y} A ${R} ${R} 0 0 ${sweep} ${B.x} ${B.y}`} fill="none" stroke={color} strokeWidth="1.5" />;
         };
 
-        const sideB_mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-        const sideA_mid = { x: (v1.x + v3.x) / 2, y: (v1.y + v3.y) / 2 };
-        const sideC_mid = { x: (v2.x + v3.x) / 2, y: (v2.y + v3.y) / 2 };
+        // Edge midpoints (screen coordinates):
+        //   AB between vA and vB, BC between vB and vC, CA between vC and vA
+        const midAB = { x: (vA.x + vB.x) / 2, y: (vA.y + vB.y) / 2 };   // side c = Side C
+        const midBC = { x: (vB.x + vC.x) / 2, y: (vB.y + vC.y) / 2 };   // side a = Side A
+        const midCA = { x: (vC.x + vA.x) / 2, y: (vC.y + vA.y) / 2 };   // side b = Side B
 
-        const labelB_pos = getLabelPos(sideB_mid, 20);
-        const labelA_pos = getLabelPos(sideA_mid, 20);
-        const labelC_pos = getLabelPos(sideC_mid, 20);
+        // Side label positions
+        const labelAB_pos = getLabelPos(midAB, 22);   // AB = c = Side C
+        const labelBC_pos = getLabelPos(midBC, 22);   // BC = a = Side A
+        const labelCA_pos = getLabelPos(midCA, 22);   // CA = b = Side B
 
-        const pA_text = getInteriorPos(v2, 45);
-        const pB_text = getInteriorPos(v3, 45);
-        const pC_text = getInteriorPos(v1, 45);
+        // Angle labels pulled inward from each vertex
+        const angleA_pos = getInteriorPos(vA, 22);   // angle at A
+        const angleB_pos = getInteriorPos(vB, 22);   // angle at B
+        const angleC_pos = getInteriorPos(vC, 22);   // angle at C
+
+        // Vertex label positions (pushed outward from centroid)
+        const vertexA_pos = getLabelPos(vA, 18);
+        const vertexB_pos = getLabelPos(vB, 18);
+        const vertexC_pos = getLabelPos(vC, 18);
+
+        // Active state booleans for each side
+        const isSideAActive = activeField === 'sideA';  // AB = Side A
+        const isSideBActive = activeField === 'sideB';  // BC = Side B
+        const isSideCActive = activeField === 'sideC';  // CA = Side C
+
+        // Side label text: each edge shows its actual length
+        const labelABText = isValidTriangle ? (sideLabels?.[0] ?? `${s0}`) : 'a';  // AB = s0 = Side A
+        const labelBCText = isValidTriangle ? (sideLabels?.[1] ?? `${s1}`) : 'b';  // BC = s1 = Side B
+        const labelCAText = isValidTriangle ? (sideLabels?.[2] ?? `${s2}`) : 'c';  // CA = s2 = Side C
 
         return (
           <View style={styles.canvas}>
+            {/* Vertex dots */}
+            <View style={[styles.apexDot, { left: vA.x - 3, top: vA.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vB.x - 3, top: vB.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vC.x - 3, top: vC.y - 3, backgroundColor: theme.textSecondary }]} />
+
             {/* SVG Arcs for Angles */}
             {isValidTriangle && (
               <Svg style={StyleSheet.absoluteFill}>
-                {renderArc(v1, v2, v3, 16, theme.textSecondary)}
-                {renderArc(v2, v1, v3, 16, theme.textSecondary)}
-                {renderArc(v3, v1, v2, 16, theme.textSecondary)}
+                {renderArc(vA, vB, vC, 16, theme.textSecondary)}
+                {renderArc(vB, vA, vC, 16, theme.textSecondary)}
+                {renderArc(vC, vA, vB, 16, theme.textSecondary)}
               </Svg>
             )}
 
             {/* Dynamic Lines representing sides */}
-            {renderDynamicLine(v1, v2, sideBHighlight, 'sideB')}
-            {renderDynamicLine(v1, v3, sideAHighlight, 'sideA')}
-            {renderDynamicLine(v2, v3, sideCHighlight, 'sideC')}
+            {renderDynamicLine(vA, vB, sideAHighlight, 'sideA')}
+            {renderDynamicLine(vB, vC, sideBHighlight, 'sideB')}
+            {renderDynamicLine(vA, vC, sideCHighlight, 'sideC')}
 
             {/* Labels for sides */}
-            <ThemedText style={[styles.dynamicLabel, { left: labelA_pos.x - 25, top: labelA_pos.y - 10, color: sideAHighlight.color, fontWeight: sideAHighlight.fontWeight as any }]}>
-              {isValidTriangle ? (sideLabels?.[0] ?? `${a}`) : 'a'}
-            </ThemedText>
-            <ThemedText style={[styles.dynamicLabel, { left: labelB_pos.x - 25, top: labelB_pos.y - 10, color: sideBHighlight.color, fontWeight: sideBHighlight.fontWeight as any }]}>
-              {isValidTriangle ? (sideLabels?.[1] ?? `${b}`) : 'b'}
-            </ThemedText>
-            <ThemedText style={[styles.dynamicLabel, { left: labelC_pos.x - 25, top: labelC_pos.y - 10, color: sideCHighlight.color, fontWeight: sideCHighlight.fontWeight as any }]}>
-              {isValidTriangle ? (sideLabels?.[2] ?? `${c}`) : 'c'}
-            </ThemedText>
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+                {labelABText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+                {labelBCText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+                {labelCAText}
+              </RNText>
+            </View>
+
+            {/* Vertex labels */}
+            <View style={[styles.vertexLabelBox, { left: vertexA_pos.x - 12, top: vertexA_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>A</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexB_pos.x - 12, top: vertexB_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>B</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexC_pos.x - 12, top: vertexC_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>C</RNText>
+            </View>
 
             {/* Labels for angles */}
             {isValidTriangle && (
               <>
-                <ThemedText style={[styles.dynamicLabel, { left: pA_text.x - 25, top: pA_text.y - 10, fontSize: 10, color: theme.textSecondary }]}>
-                  {angleA.toFixed(1)}°
-                </ThemedText>
-                <ThemedText style={[styles.dynamicLabel, { left: pB_text.x - 25, top: pB_text.y - 10, fontSize: 10, color: theme.textSecondary }]}>
-                  {angleB.toFixed(1)}°
-                </ThemedText>
-                <ThemedText style={[styles.dynamicLabel, { left: pC_text.x - 25, top: pC_text.y - 10, fontSize: 10, color: theme.textSecondary }]}>
-                  {angleC.toFixed(1)}°
-                </ThemedText>
+                <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠A {angleA.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠B {angleB.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠C {angleC.toFixed(1)}°
+                  </RNText>
+                </View>
               </>
             )}
           </View>
@@ -497,13 +553,51 @@ const styles = StyleSheet.create({
   },
   apexDot: {
     position: 'absolute',
-    left: '50%',
-    top: 28,
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#3c87f7',
-    marginLeft: -3,
+    zIndex: 10,
+  },
+  labelBox: {
+    position: 'absolute',
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  labelBoxText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    lineHeight: 14,
+  },
+  vertexLabelBox: {
+    position: 'absolute',
+    width: 24,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  vertexLabelText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    lineHeight: 14,
+  },
+  angleLabelBox: {
+    position: 'absolute',
+    width: 60,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  angleLabelText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 14,
   },
   rectangleBox: {
     position: 'absolute',

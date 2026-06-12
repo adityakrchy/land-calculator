@@ -14,6 +14,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { generateTriangle, calculateInteriorAngles } from '@/utils/geometry';
 
 type ShapeType = 'triangle' // | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
 
@@ -23,11 +24,8 @@ interface InputFields {
   length?: string;
   width?: string;
   sideA?: string; // Top base for Trapezoid, Side a for Triangle
-  sideA_in?: string; // Inches part of sideA (when unit is feet)
   sideB?: string; // Bottom base for Trapezoid, Side b for Triangle
-  sideB_in?: string; // Inches part of sideB (when unit is feet)
   sideC?: string; // Side c for Triangle
-  sideC_in?: string; // Inches part of sideC (when unit is feet)
   angleA?: string;
   angleB?: string;
   angleC?: string;
@@ -164,42 +162,56 @@ export default function HomeScreen() {
     switch (selectedShape) {
       case 'triangle': {
         const parseAsNaN = (val?: string) => val ? parseFloat(val) : NaN;
-        const parseSide = (feetVal?: string, inchVal?: string) => {
-          const feet = parseAsNaN(feetVal);
-          const inch = parseAsNaN(inchVal);
-          if (isNaN(feet) && isNaN(inch)) return NaN;
+        const parseSide = (val?: string) => {
+          if (!val) return NaN;
+          const parts = val.split('.');
+          const feet = parseInt(parts[0], 10);
+          const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+          if (isNaN(feet) && isNaN(inches)) return NaN;
           let total = 0;
           if (!isNaN(feet)) total += feet;
-          if (!isNaN(inch)) {
-            // Per user request: divide inch value by 1.2 so that the actual value could be calculated (since 12 inch is 1 feet).
-            // Change 1.2 to 12 if you wish to use standard mathematical feet-to-inches conversion.
-            total += inch / 1.2;
-          }
+          if (!isNaN(inches)) total += inches / 1.2;
           return total;
         };
 
-        let a = unit === 'ft' ? parseSide(inputs.sideA, inputs.sideA_in) : parseAsNaN(inputs.sideA);
-        let b = unit === 'ft' ? parseSide(inputs.sideB, inputs.sideB_in) : parseAsNaN(inputs.sideB);
-        let c = unit === 'ft' ? parseSide(inputs.sideC, inputs.sideC_in) : parseAsNaN(inputs.sideC);
-        let A = parseAsNaN(inputs.angleA);
-        let B = parseAsNaN(inputs.angleB);
-        let C = parseAsNaN(inputs.angleC);
+        let sideA = unit === 'ft' ? parseSide(inputs.sideA) : parseAsNaN(inputs.sideA);
+        let sideB = unit === 'ft' ? parseSide(inputs.sideB) : parseAsNaN(inputs.sideB);
+        let sideC = unit === 'ft' ? parseSide(inputs.sideC) : parseAsNaN(inputs.sideC);
+        let angA = parseAsNaN(inputs.angleA);
+        let angB = parseAsNaN(inputs.angleB);
+        let angC = parseAsNaN(inputs.angleC);
 
-        const knownCount = [a, b, c, A, B, C].filter(n => !isNaN(n)).length;
+        const knownCount = [sideA, sideB, sideC, angA, angB, angC].filter(n => !isNaN(n)).length;
         hasInputs = knownCount >= 3;
 
-        const solved = solveTriangleParams(a, b, c, A, B, C);
-        solvedTriangle = solved;
+        // Use solveTriangleParams for general solving (handles angle-entry cases)
+        const solved = solveTriangleParams(sideA, sideB, sideC, angA, angB, angC);
+        sideA = solved.a; sideB = solved.b; sideC = solved.c;
 
-        a = solved.a; b = solved.b; c = solved.c;
-
-        const isTriangleInequalityValid = !isNaN(a) && !isNaN(b) && !isNaN(c) && a + b > c && a + c > b && b + c > a;
+        const isTriangleInequalityValid = !isNaN(sideA) && !isNaN(sideB) && !isNaN(sideC)
+          && sideA > 0 && sideB > 0 && sideC > 0
+          && sideA + sideB > sideC && sideA + sideC > sideB && sideB + sideC > sideA;
         isValid = isTriangleInequalityValid;
 
         if (isValid) {
-          const s = (a + b + c) / 2;
-          const val = s * (s - a) * (s - b) * (s - c);
-          area = Math.sqrt(val);
+          // Use the same triangle generation and angle calculation as plot.tsx
+          const points = generateTriangle(sideA, sideB, sideC);
+          const angles = calculateInteriorAngles(points);
+
+          solvedTriangle = {
+            a: sideA,
+            b: sideB,
+            c: sideC,
+            A: angles[0],
+            B: angles[1],
+            C: angles[2],
+          };
+
+          // Heron's formula
+          const s = (sideA + sideB + sideC) / 2;
+          area = Math.sqrt(s * (s - sideA) * (s - sideB) * (s - sideC));
+        } else {
+          solvedTriangle = { a: sideA, b: sideB, c: sideC, A: NaN, B: NaN, C: NaN };
         }
         break;
       }
@@ -310,114 +322,76 @@ export default function HomeScreen() {
   };
 
   // Dynamic input fields helper based on selected shape
-  const renderInputFields = () => {
-    if (selectedShape === 'triangle' && unit === 'ft') {
-      const s = calculationResult.solvedTriangle;
-      
-      const renderSplitInput = (
-        feetKey: 'sideA' | 'sideB' | 'sideC',
-        inchKey: 'sideA_in' | 'sideB_in' | 'sideC_in',
-        label: string,
-        solvedVal?: number
-      ) => {
-        let ftPlaceholder = 'e.g. 5';
-        let inPlaceholder = 'e.g. 7';
-        if (solvedVal && !isNaN(solvedVal) && !inputs[feetKey] && !inputs[inchKey]) {
-          const solvedFt = Math.floor(solvedVal);
-          const solvedIn = Math.round((solvedVal - solvedFt) * 1.2 * 10) / 10;
-          ftPlaceholder = solvedFt.toString();
-          inPlaceholder = solvedIn.toString();
-        }
+  const formatFtInput = (val: number) => {
+    if (isNaN(val) || val <= 0) return 'e.g. 4.7';
+    const ft = Math.floor(val);
+    const inch = Math.round((val - ft) * 1.2);
+    return `${ft}.${inch}`;
+  };
 
-        return (
-          <View key={feetKey} style={styles.inputContainer}>
-            <ThemedText type="smallBold" style={styles.inputLabel}>
-              {label}
-            </ThemedText>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1, position: 'relative' }}>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.backgroundElement,
-                      color: theme.text,
-                      borderColor: activeField === feetKey ? '#3c87f7' : theme.backgroundSelected,
-                      paddingRight: 28,
-                    },
-                  ]}
-                  value={inputs[feetKey] || ''}
-                  onChangeText={val => handleInputChange(feetKey, val)}
-                  placeholder={ftPlaceholder}
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="decimal-pad"
-                  onFocus={() => setActiveField(feetKey)}
-                  onBlur={() => setActiveField(null)}
-                />
-                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
-                  <ThemedText type="small" themeColor="textSecondary">ft</ThemedText>
-                </View>
-              </View>
-              <View style={{ flex: 1, position: 'relative' }}>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.backgroundElement,
-                      color: theme.text,
-                      borderColor: activeField === inchKey ? '#3c87f7' : theme.backgroundSelected,
-                      paddingRight: 28,
-                    },
-                  ]}
-                  value={inputs[inchKey] || ''}
-                  onChangeText={val => handleInputChange(inchKey, val)}
-                  placeholder={inPlaceholder}
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="decimal-pad"
-                  onFocus={() => setActiveField(inchKey)}
-                  onBlur={() => setActiveField(null)}
-                />
-                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
-                  <ThemedText type="small" themeColor="textSecondary">in</ThemedText>
-                </View>
-              </View>
-            </View>
-          </View>
+  const renderInputFields = () => {
+    if (selectedShape === 'triangle') {
+      const s = calculationResult.solvedTriangle;
+
+      const fields: { key: keyof InputFields; label: string; placeholder: string }[] = [];
+
+      if (unit === 'ft') {
+        fields.push(
+          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? formatFtInput(s.a) : 'e.g. 4.7' },
+          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? formatFtInput(s.b) : 'e.g. 5.6' },
+          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? formatFtInput(s.c) : 'e.g. 6.8' },
         );
+      } else {
+        fields.push(
+          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? s.a.toFixed(2) : 'e.g. 5' },
+          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? s.b.toFixed(2) : 'e.g. 6' },
+          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? s.c.toFixed(2) : 'e.g. 7' },
+        );
+      }
+
+      fields.push(
+        { key: 'angleA', label: 'Angle A (°)', placeholder: (s && !isNaN(s.A) && !inputs.angleA) ? s.A.toFixed(1) : 'e.g. 90' },
+        { key: 'angleB', label: 'Angle B (°)', placeholder: (s && !isNaN(s.B) && !inputs.angleB) ? s.B.toFixed(1) : 'e.g. 53' },
+        { key: 'angleC', label: 'Angle C (°)', placeholder: (s && !isNaN(s.C) && !inputs.angleC) ? s.C.toFixed(1) : 'e.g. 37' }
+      );
+
+      const getUnitSuffix = (key: string) => {
+        if (key.startsWith('angle')) return '°';
+        return unit === 'ft' ? 'ft' : unit;
       };
 
       return (
         <View style={styles.inputsGrid}>
-          {renderSplitInput('sideA', 'sideA_in', 'Side A', s?.a)}
-          {renderSplitInput('sideB', 'sideB_in', 'Side B', s?.b)}
-          {renderSplitInput('sideC', 'sideC_in', 'Side C', s?.c)}
-          
-          {[
-            { key: 'angleA' as const, label: 'Angle A (°)', placeholder: (s && !isNaN(s.A) && !inputs.angleA) ? s.A.toFixed(1) : 'e.g. 90' },
-            { key: 'angleB' as const, label: 'Angle B (°)', placeholder: (s && !isNaN(s.B) && !inputs.angleB) ? s.B.toFixed(1) : 'e.g. 53' },
-            { key: 'angleC' as const, label: 'Angle C (°)', placeholder: (s && !isNaN(s.C) && !inputs.angleC) ? s.C.toFixed(1) : 'e.g. 37' },
-          ].map(f => (
+          {fields.map(f => (
             <View key={f.key} style={styles.inputContainer}>
               <ThemedText type="smallBold" style={styles.inputLabel}>
                 {f.label}
               </ThemedText>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.backgroundElement,
-                    color: theme.text,
-                    borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
-                  },
-                ]}
-                value={inputs[f.key] || ''}
-                onChangeText={val => handleInputChange(f.key, val)}
-                placeholder={f.placeholder}
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="decimal-pad"
-                onFocus={() => setActiveField(f.key)}
-                onBlur={() => setActiveField(null)}
-              />
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      color: theme.text,
+                      borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
+                      paddingRight: 28,
+                    },
+                  ]}
+                  value={inputs[f.key] || ''}
+                  onChangeText={val => handleInputChange(f.key, val)}
+                  placeholder={f.placeholder}
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  onFocus={() => setActiveField(f.key)}
+                  onBlur={() => setActiveField(null)}
+                />
+                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {getUnitSuffix(f.key)}
+                  </ThemedText>
+                </View>
+              </View>
             </View>
           ))}
         </View>
@@ -426,17 +400,7 @@ export default function HomeScreen() {
 
     const fields: { key: keyof InputFields; label: string; placeholder: string }[] = [];
 
-    if (selectedShape === 'triangle') {
-      const s = calculationResult.solvedTriangle;
-      fields.push(
-        { key: 'sideA', label: `Side A`, placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? s.a.toFixed(2) : 'e.g. 5' },
-        { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? s.b.toFixed(2) : 'e.g. 6' },
-        { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? s.c.toFixed(2) : 'e.g. 7' },
-        { key: 'angleA', label: `Angle A (°)`, placeholder: (s && !isNaN(s.A) && !inputs.angleA) ? s.A.toFixed(1) : 'e.g. 90' },
-        { key: 'angleB', label: 'Angle B (°)', placeholder: (s && !isNaN(s.B) && !inputs.angleB) ? s.B.toFixed(1) : 'e.g. 53' },
-        { key: 'angleC', label: 'Angle C (°)', placeholder: (s && !isNaN(s.C) && !inputs.angleC) ? s.C.toFixed(1) : 'e.g. 37' }
-      );
-    } else if (selectedShape === 'rectangle') {
+    if (selectedShape === 'rectangle') {
       fields.push(
         { key: 'length', label: 'Length (l)', placeholder: 'e.g. 8' },
         { key: 'width', label: 'Width (w)', placeholder: 'e.g. 4' }
@@ -460,98 +424,107 @@ export default function HomeScreen() {
       );
     }
 
-    return (
-      <View style={styles.inputsGrid}>
-        {fields.map(f => (
-          <View key={f.key} style={styles.inputContainer}>
-            <ThemedText type="smallBold" style={styles.inputLabel}>
-              {f.label}
-            </ThemedText>
-            <TextInput
-              style={[
-                styles.textInput,
-                {
-                  backgroundColor: theme.backgroundElement,
-                  color: theme.text,
-                  borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
-                },
-              ]}
-              value={inputs[f.key] || ''}
-              onChangeText={val => handleInputChange(f.key, val)}
-              placeholder={f.placeholder}
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="decimal-pad"
-              onFocus={() => setActiveField(f.key)}
-              onBlur={() => setActiveField(null)}
-            />
-          </View>
-        ))}
-      </View>
-    );
+    if (fields.length > 0) {
+      return (
+        <View style={styles.inputsGrid}>
+          {fields.map(f => (
+            <View key={f.key} style={styles.inputContainer}>
+              <ThemedText type="smallBold" style={styles.inputLabel}>
+                {f.label}
+              </ThemedText>
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      color: theme.text,
+                      borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
+                      paddingRight: 28,
+                    },
+                  ]}
+                  value={inputs[f.key] || ''}
+                  onChangeText={val => handleInputChange(f.key, val)}
+                  placeholder={f.placeholder}
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  onFocus={() => setActiveField(f.key)}
+                  onBlur={() => setActiveField(null)}
+                />
+                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
+                  <ThemedText type="small" themeColor="textSecondary">{unit}</ThemedText>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  const parseSideNum = (val?: string) => {
+    if (!val) return 0;
+    const parts = val.split('.');
+    const feet = parseInt(parts[0], 10);
+    const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+    if (isNaN(feet) && isNaN(inches)) return 0;
+    let total = 0;
+    if (!isNaN(feet)) total += feet;
+    if (!isNaN(inches)) total += inches / 1.2;
+    return total;
+  };
+
+  const formatLabel = (val: number, rawValue?: string) => {
+    if (rawValue) {
+      const parts = rawValue.split('.');
+      const ft = parseInt(parts[0], 10);
+      const inch = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+      if (!isNaN(ft)) {
+        if (inch > 0) return `${ft} ft ${inch} in`;
+        return `${ft} ft`;
+      }
+    }
+    if (isNaN(val) || val <= 0) return '0 ft';
+    const ft = Math.floor(val);
+    const inch = Math.round((val - ft) * 1.2 * 10) / 10;
+    if (inch > 0) {
+      return `${ft} ft ${inch} in`;
+    }
+    return `${ft} ft`;
   };
 
   const sideData = useMemo(() => {
-    if (selectedShape !== 'triangle' || unit !== 'ft') {
-      const s =
-        selectedShape === 'triangle' && calculationResult.solvedTriangle && calculationResult.isValid
-          ? [
-              calculationResult.solvedTriangle.a.toString(),
-              calculationResult.solvedTriangle.b.toString(),
-              calculationResult.solvedTriangle.c.toString(),
-            ]
-          : [
-              inputs.sideA || inputs.base || inputs.length || inputs.diagonal || '0',
-              inputs.sideB || inputs.height || inputs.width || inputs.h1 || '0',
-              inputs.sideC || inputs.h2 || '0',
-            ];
-      return { sides: s, sideLabels: undefined };
-    }
-
-    const parseSideNum = (feetVal?: string, inchVal?: string) => {
-      const feet = parseFloat(feetVal || '0');
-      const inch = parseFloat(inchVal || '0');
-      if (isNaN(feet) && isNaN(inch)) return 0;
-      let total = 0;
-      if (!isNaN(feet)) total += feet;
-      if (!isNaN(inch)) total += inch / 1.2;
-      return total;
-    };
-
-    const formatLabel = (val: number, rawFt?: string, rawIn?: string) => {
-      if (rawFt || rawIn) {
-        const parts = [];
-        if (rawFt) parts.push(`${rawFt} ft`);
-        if (rawIn) parts.push(`${rawIn} in`);
-        return parts.join(' ');
-      }
-      if (isNaN(val) || val <= 0) return '0 ft';
-      const ft = Math.floor(val);
-      const inch = Math.round((val - ft) * 1.2 * 10) / 10;
-      if (inch > 0) {
-        return `${ft} ft ${inch} in`;
-      }
-      return `${ft} ft`;
-    };
-
     let aNum = 0;
     let bNum = 0;
     let cNum = 0;
+
     if (calculationResult.solvedTriangle && calculationResult.isValid) {
       aNum = calculationResult.solvedTriangle.a;
       bNum = calculationResult.solvedTriangle.b;
       cNum = calculationResult.solvedTriangle.c;
     } else {
-      aNum = parseSideNum(inputs.sideA, inputs.sideA_in);
-      bNum = parseSideNum(inputs.sideB, inputs.sideB_in);
-      cNum = parseSideNum(inputs.sideC, inputs.sideC_in);
+      if (selectedShape === 'triangle' && unit === 'ft') {
+        aNum = parseSideNum(inputs.sideA);
+        bNum = parseSideNum(inputs.sideB);
+        cNum = parseSideNum(inputs.sideC);
+      } else {
+        aNum = parseFloat(inputs.sideA || inputs.base || inputs.length || inputs.diagonal || '0') || 0;
+        bNum = parseFloat(inputs.sideB || inputs.height || inputs.width || inputs.h1 || '0') || 0;
+        cNum = parseFloat(inputs.sideC || inputs.h2 || '0') || 0;
+      }
     }
 
     const s = [aNum.toString(), bNum.toString(), cNum.toString()];
-    const sideLabels = [
-      formatLabel(aNum, inputs.sideA, inputs.sideA_in),
-      formatLabel(bNum, inputs.sideB, inputs.sideB_in),
-      formatLabel(cNum, inputs.sideC, inputs.sideC_in),
-    ];
+    let sideLabels: string[] | undefined;
+    if (selectedShape === 'triangle' && unit === 'ft') {
+      sideLabels = [
+        formatLabel(aNum, inputs.sideA),
+        formatLabel(bNum, inputs.sideB),
+        formatLabel(cNum, inputs.sideC),
+      ];
+    }
 
     return { sides: s, sideLabels };
   }, [selectedShape, unit, inputs, calculationResult]);
