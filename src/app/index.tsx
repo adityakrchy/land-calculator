@@ -170,7 +170,7 @@ export default function HomeScreen() {
           if (isNaN(feet) && isNaN(inches)) return NaN;
           let total = 0;
           if (!isNaN(feet)) total += feet;
-          if (!isNaN(inches)) total += inches / 1.2;
+          if (!isNaN(inches)) total += inches / 12;
           return total;
         };
 
@@ -325,7 +325,7 @@ export default function HomeScreen() {
   const formatFtInput = (val: number) => {
     if (isNaN(val) || val <= 0) return 'e.g. 4.7';
     const ft = Math.floor(val);
-    const inch = Math.round((val - ft) * 1.2);
+    const inch = Math.round((val - ft) * 12);
     return `${ft}.${inch}`;
   };
 
@@ -472,7 +472,7 @@ export default function HomeScreen() {
     if (isNaN(feet) && isNaN(inches)) return 0;
     let total = 0;
     if (!isNaN(feet)) total += feet;
-    if (!isNaN(inches)) total += inches / 1.2;
+    if (!isNaN(inches)) total += inches / 12;
     return total;
   };
 
@@ -488,7 +488,7 @@ export default function HomeScreen() {
     }
     if (isNaN(val) || val <= 0) return '0 ft';
     const ft = Math.floor(val);
-    const inch = Math.round((val - ft) * 1.2 * 10) / 10;
+    const inch = Math.round((val - ft) * 12 * 10) / 10;
     if (inch > 0) {
       return `${ft} ft ${inch} in`;
     }
