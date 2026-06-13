@@ -302,47 +302,44 @@ export default function HomeScreen() {
     if (!calculationResult.isValid) return null;
     const { areaInSqM } = calculationResult;
 
-    // Base Area
-    const sqM = areaInSqM;
-    const sqYd = sqM * 1.19599;
-    const hectare = sqM / 10000;
-    const are = sqM / 100;
-    const sqFt = sqM * 10.7639;
-    const acre = sqFt / 43560;
-    const cent = acre * 100;
+    const sqFt = areaInSqM * 10.7639;
 
-    // Darbhanga Standard: 1 Katha = 1901.25 sq ft
-    const katha = sqFt / 1901.25;
-    const bigha = katha / 20;
-
-    const formattedUnits = [
-      { label: 'Square Mtr', value: sqM.toFixed(2) },
-      { label: 'Square Yard', value: sqYd.toFixed(2) },
-      { label: 'Hectare', value: hectare.toFixed(4) },
-      { label: 'Are', value: are.toFixed(4) },
-      { label: 'Square Ft', value: sqFt.toFixed(2) },
-      { label: 'Acre', value: acre.toFixed(4) },
-      { label: 'Cent/Decimal', value: cent.toFixed(2) },
-      { label: 'Katha', value: katha.toFixed(2), note: 'Darbhanga Std' },
-      { label: 'Bigha', value: bigha.toFixed(2), note: 'Darbhanga Std' },
+    const conversions: { label: string; value: string }[] = [
+      { label: 'Kadi Sq', value: (sqFt / 2.25).toFixed(2) },
+      { label: 'Cent / Decimal', value: (sqFt / 435.6).toFixed(2) },
+      { label: 'Dhur', value: (sqFt / 95.0625).toFixed(2) },
+      { label: 'Katha', value: (sqFt / 1901.25).toFixed(2) },
+      { label: 'Bigha', value: (sqFt / 38025).toFixed(3) },
+      { label: 'Kasma', value: (sqFt / 47.53125).toFixed(2) },
+      { label: 'Acre', value: (sqFt / 43560).toFixed(4) },
+      { label: 'Hectare', value: (sqFt / 107639).toFixed(4) },
+      { label: 'Sq Yard / Gaj', value: (sqFt / 9).toFixed(2) },
     ];
 
     return (
-      <View style={{ marginTop: 16 }}>
+      <View style={styles.conversionsSection}>
         <View style={styles.divider} />
         <ThemedText type="smallBold" style={styles.stepsTitle}>
-          Converted Land Area:
+          Converted Land Area
         </ThemedText>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 8 }}>
-          {formattedUnits.map((item, idx) => (
-            <View key={idx} style={{ flexGrow: 1, minWidth: '45%', backgroundColor: 'rgba(60, 135, 247, 0.05)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(60, 135, 247, 0.1)' }}>
-              <ThemedText type="small" themeColor="textSecondary">{item.label}</ThemedText>
-              {/* <ThemedText type="defaultSemiBold" style={{ marginTop: 2 }}>{item.value}</ThemedText> */}
-              {item.note && (
-                <ThemedText type="small" style={{ color: '#888', fontSize: 10, marginTop: 4 }}>
-                  {item.note}
-                </ThemedText>
-              )}
+        <View style={styles.conversionsList}>
+          {conversions.map((item, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.conversionRow,
+                {
+                  backgroundColor: 'rgba(60, 135, 247, 0.04)',
+                  borderColor: 'rgba(60, 135, 247, 0.1)',
+                },
+              ]}
+            >
+              <ThemedText type="default" style={styles.conversionLabel}>
+                {item.label}
+              </ThemedText>
+              <ThemedText type="defaultSemiBold" style={styles.conversionValue}>
+                {item.value}
+              </ThemedText>
             </View>
           ))}
         </View>
@@ -362,68 +359,104 @@ export default function HomeScreen() {
     if (selectedShape === 'triangle') {
       const s = calculationResult.solvedTriangle;
 
-      const fields: { key: keyof InputFields; label: string; placeholder: string }[] = [];
+      // Side fields - each full-width row
+      type SideField = { key: keyof InputFields; label: string; placeholder: string };
+      const sideFields: SideField[] = [];
 
       if (unit === 'ft') {
-        fields.push(
+        sideFields.push(
           { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? formatFtInput(s.a) : 'e.g. 4.7' },
           { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? formatFtInput(s.b) : 'e.g. 5.6' },
           { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? formatFtInput(s.c) : 'e.g. 6.8' },
         );
       } else {
-        fields.push(
+        sideFields.push(
           { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? s.a.toFixed(2) : 'e.g. 5' },
           { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? s.b.toFixed(2) : 'e.g. 6' },
           { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? s.c.toFixed(2) : 'e.g. 7' },
         );
       }
 
-      fields.push(
-        { key: 'angleA', label: 'Angle A (°)', placeholder: (s && !isNaN(s.A) && !inputs.angleA) ? s.A.toFixed(1) : 'e.g. 90' },
-        { key: 'angleB', label: 'Angle B (°)', placeholder: (s && !isNaN(s.B) && !inputs.angleB) ? s.B.toFixed(1) : 'e.g. 53' },
-        { key: 'angleC', label: 'Angle C (°)', placeholder: (s && !isNaN(s.C) && !inputs.angleC) ? s.C.toFixed(1) : 'e.g. 37' }
-      );
+      const unitSuffix = unit === 'ft' ? 'ft' : unit;
 
-      const getUnitSuffix = (key: string) => {
-        if (key.startsWith('angle')) return '°';
-        return unit === 'ft' ? 'ft' : unit;
-      };
+      const hasAngles = s && !isNaN(s.A) && !isNaN(s.B) && !isNaN(s.C) && s.A > 0 && s.B > 0 && s.C > 0;
+      const angleLabels = ['A', 'B', 'C'];
 
       return (
-        <View style={styles.inputsGrid}>
-          {fields.map(f => (
-            <View key={f.key} style={styles.inputContainer}>
-              <ThemedText type="smallBold" style={styles.inputLabel}>
-                {f.label}
-              </ThemedText>
-              <View style={{ position: 'relative' }}>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.backgroundElement,
-                      color: theme.text,
-                      borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
-                      paddingRight: 28,
-                    },
-                  ]}
-                  value={inputs[f.key] || ''}
-                  onChangeText={val => handleInputChange(f.key, val)}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="decimal-pad"
-                  onFocus={() => setActiveField(f.key)}
-                  onBlur={() => setActiveField(null)}
-                />
-                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {getUnitSuffix(f.key)}
-                  </ThemedText>
+        <>
+          {/* Sides - each full-width row */}
+          <View style={styles.sidesSection}>
+            {sideFields.map(f => (
+              <View key={f.key} style={styles.sideRow}>
+                <ThemedText type="small" style={styles.sideLabel}>
+                  {f.label}
+                </ThemedText>
+                <View style={{ position: 'relative', flex: 1 }}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.backgroundElement,
+                        color: theme.text,
+                        borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
+                        paddingRight: 28,
+                      },
+                    ]}
+                    value={inputs[f.key] || ''}
+                    onChangeText={val => handleInputChange(f.key, val)}
+                    placeholder={f.placeholder}
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="decimal-pad"
+                    onFocus={() => setActiveField(f.key)}
+                    onBlur={() => setActiveField(null)}
+                  />
+                  <View style={styles.inputSuffix}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {unitSuffix}
+                    </ThemedText>
+                  </View>
                 </View>
               </View>
+            ))}
+          </View>
+
+          {/* Angles - 3-column display */}
+          <View style={styles.anglesSection}>
+            <View style={styles.anglesRow}>
+              {angleLabels.map((label) => {
+                const angleVal = label === 'A' ? s?.A : label === 'B' ? s?.B : s?.C;
+                const displayVal =
+                  hasAngles ? `${angleVal!.toFixed(1)}°` : '—';
+                return (
+                  <View key={label} style={styles.angleItem}>
+                    <ThemedText type="small" style={styles.angleLabel}>
+                      ∠{label}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.angleValueBox,
+                        {
+                          backgroundColor: theme.backgroundElement,
+                          borderColor: activeField === `angle${label}` ? '#3c87f7' : theme.backgroundSelected,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        type="defaultSemiBold"
+                        style={[
+                          styles.angleValue,
+                          { color: hasAngles ? '#3c87f7' : theme.textSecondary },
+                        ]}
+                      >
+                        {displayVal}
+                      </ThemedText>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          ))}
-        </View>
+          </View>
+        </>
       );
     }
 
@@ -458,10 +491,10 @@ export default function HomeScreen() {
         <View style={styles.inputsGrid}>
           {fields.map(f => (
             <View key={f.key} style={styles.inputContainer}>
-              <ThemedText type="smallBold" style={styles.inputLabel}>
+              <ThemedText type="small" style={styles.inputLabel}>
                 {f.label}
               </ThemedText>
-              <View style={{ position: 'relative' }}>
+              <View style={{ position: 'relative', flex: 1 }}>
                 <TextInput
                   style={[
                     styles.textInput,
@@ -480,7 +513,7 @@ export default function HomeScreen() {
                   onFocus={() => setActiveField(f.key)}
                   onBlur={() => setActiveField(null)}
                 />
-                <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', pointerEvents: 'none' }}>
+                <View style={styles.inputSuffix}>
                   <ThemedText type="small" themeColor="textSecondary">{unit}</ThemedText>
                 </View>
               </View>
@@ -752,12 +785,17 @@ export default function HomeScreen() {
                 <View>
                   {calculationResult.isValid ? (
                     <>
-                      <ThemedText type="title" style={styles.resultValue}>
-                        {calculationResult.area.toFixed(2)}{' '}
-                        <ThemedText type="subtitle" style={styles.resultUnit}>
-                          {unit}²
+                      <View style={styles.totalSqFtRow}>
+                        <ThemedText type="defaultSemiBold" style={styles.totalSqFtLabel}>
+                          Total Sq Foot
                         </ThemedText>
-                      </ThemedText>
+                        <ThemedText type="title" style={styles.resultValue}>
+                          {(calculationResult.areaInSqM * 10.7639).toFixed(2)}{' '}
+                          <ThemedText type="subtitle" style={styles.resultUnit}>
+                            sq ft
+                          </ThemedText>
+                        </ThemedText>
+                      </View>
                     </>
                   ) : (
                     <View style={styles.invalidContainer}>
@@ -915,21 +953,87 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
   },
   inputsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   inputContainer: {
-    gap: Spacing.one,
+    width: '48%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   inputLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    minWidth: 52,
   },
   textInput: {
-    height: 48,
+    height: 42,
     borderWidth: 1.5,
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 0,
     fontSize: 16,
+    flex: 1,
   },
+  inputSuffix: {
+    position: 'absolute',
+    right: 8,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+
+  // Triangle sides
+  sidesSection: {
+    gap: Spacing.two,
+  },
+  sideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  sideLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    minWidth: 52,
+  },
+
+  // Triangle angles display
+  anglesSection: {
+    marginTop: Spacing.two,
+  },
+  anglesRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  angleItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  angleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: '#3c87f7',
+  },
+  angleValueBox: {
+    width: '100%',
+    height: 42,
+    borderWidth: 1.5,
+    borderRadius: Spacing.two,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
+  },
+  angleValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
   resultCard: {
     borderWidth: 2,
   },
@@ -1004,5 +1108,41 @@ const styles = StyleSheet.create({
   },
   collapsibleSection: {
     gap: Spacing.four,
+  },
+
+  // Total Sq Ft row
+  totalSqFtRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.two,
+  },
+  totalSqFtLabel: {
+    fontSize: 15,
+    color: '#3c87f7',
+  },
+
+  // Conversions single column list
+  conversionsSection: {
+    marginTop: 16,
+  },
+  conversionsList: {
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  conversionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+  },
+  conversionLabel: {
+    fontSize: 15,
+  },
+  conversionValue: {
+    fontSize: 15,
+    color: '#3c87f7',
   },
 });
