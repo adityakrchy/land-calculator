@@ -1,6 +1,7 @@
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -77,6 +78,34 @@ export default function HomeScreen() {
   const [unit, setUnit] = useState<string>('cm');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputFields>({});
+
+  // ── Collapsing header on scroll ────────────────────────────────────────
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const COLLAPSE_DISTANCE = 200;
+
+  const collapsibleOpacity = scrollY.interpolate({
+    inputRange: [0, COLLAPSE_DISTANCE],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const collapsibleTranslateY = scrollY.interpolate({
+    inputRange: [0, COLLAPSE_DISTANCE],
+    outputRange: [0, -15],
+    extrapolate: 'clamp',
+  });
+
+  const compactOpacity = scrollY.interpolate({
+    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const compactTranslateY = scrollY.interpolate({
+    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE],
+    outputRange: [-32, 0],
+    extrapolate: 'clamp',
+  });
 
   // Reset inputs when shape changes
   const handleShapeSelect = (shape: ShapeType) => {
@@ -532,9 +561,58 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-        <ScrollView
+        {/* Compact header that appears on scroll */}
+        <Animated.View
+          style={[
+            styles.compactHeader,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderBottomColor: theme.backgroundSelected,
+              opacity: compactOpacity,
+              transform: [{ translateY: compactTranslateY }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={styles.compactHeaderInner}>
+            <ThemedText
+              type="default"
+              style={[
+                styles.compactHeaderText,
+                { color: '#3c87f7' },
+              ]}
+            >
+              {selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
+            </ThemedText>
+            <ThemedText
+              type="default"
+              style={[
+                styles.compactHeaderText,
+                { color: theme.textSecondary, marginHorizontal: 6 },
+              ]}
+            >
+              ·
+            </ThemedText>
+            <ThemedText
+              type="default"
+              style={[
+                styles.compactHeaderText,
+                { color: theme.text },
+              ]}
+            >
+              {unit}
+            </ThemedText>
+          </View>
+        </Animated.View>
+
+        <Animated.ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -553,74 +631,85 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* Unit Selector */}
-          <View style={styles.sectionHeader}>
-            <ThemedText type="smallBold">Select Measurement Unit</ThemedText>
-            <View style={styles.unitSelector}>
-              {UNITS.map(u => (
-                <Pressable
-                  key={u}
-                  onPress={() => setUnit(u)}
-                  style={[
-                    styles.unitButton,
-                    unit === u && { backgroundColor: '#3c87f7' },
-                  ]}
-                >
-                  <ThemedText
-                    type="smallBold"
-                    style={{ color: unit === u ? '#ffffff' : theme.textSecondary }}
-                  >
-                    {u}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Horizontal Shape Cards */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.shapeSelectorScroll}
+          {/* Collapsible Section: Unit Selector + Shape Cards */}
+          <Animated.View
+            style={[
+              styles.collapsibleSection,
+              {
+                opacity: collapsibleOpacity,
+                transform: [{ translateY: collapsibleTranslateY }],
+              },
+            ]}
           >
-            {SHAPES.map(s => {
-              const isSelected = selectedShape === s.type;
-              const iconColor = isSelected ? '#ffffff' : theme.text;
-              return (
-                <Pressable
-                  key={s.type}
-                  onPress={() => handleShapeSelect(s.type)}
-                  style={[
-                    styles.shapeCard,
-                    {
-                      backgroundColor: isSelected ? '#3c87f7' : theme.backgroundElement,
-                      borderColor: isSelected ? '#3c87f7' : theme.backgroundSelected,
-                    },
-                  ]}
-                >
-                  {isSelected && (
-                    <View style={styles.checkmarkBadge}>
-                      <SymbolView name="checkmark.circle.fill" size={14} tintColor="#ffffff" />
-                    </View>
-                  )}
-
-                  <View style={styles.shapeIconCenterContainer}>
-                    <ShapeIcon type={s.type} color={iconColor} />
-                  </View>
-
-                  <View style={styles.shapeCardTextContainer}>
+            {/* Unit Selector */}
+            <View style={styles.sectionHeader}>
+              <ThemedText type="smallBold">Select Measurement Unit</ThemedText>
+              <View style={styles.unitSelector}>
+                {UNITS.map(u => (
+                  <Pressable
+                    key={u}
+                    onPress={() => setUnit(u)}
+                    style={[
+                      styles.unitButton,
+                      unit === u && { backgroundColor: '#3c87f7' },
+                    ]}
+                  >
                     <ThemedText
                       type="smallBold"
-                      style={[styles.shapeCardLabel, { color: isSelected ? '#ffffff' : theme.text }]}
+                      style={{ color: unit === u ? '#ffffff' : theme.textSecondary }}
                     >
-                      {s.label}
+                      {u}
                     </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
 
-                  </View>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+            {/* Horizontal Shape Cards */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.shapeSelectorScroll}
+            >
+              {SHAPES.map(s => {
+                const isSelected = selectedShape === s.type;
+                const iconColor = isSelected ? '#ffffff' : theme.text;
+                return (
+                  <Pressable
+                    key={s.type}
+                    onPress={() => handleShapeSelect(s.type)}
+                    style={[
+                      styles.shapeCard,
+                      {
+                        backgroundColor: isSelected ? '#3c87f7' : theme.backgroundElement,
+                        borderColor: isSelected ? '#3c87f7' : theme.backgroundSelected,
+                      },
+                    ]}
+                  >
+                    {isSelected && (
+                      <View style={styles.checkmarkBadge}>
+                        <SymbolView name="checkmark.circle.fill" size={14} tintColor="#ffffff" />
+                      </View>
+                    )}
+
+                    <View style={styles.shapeIconCenterContainer}>
+                      <ShapeIcon type={s.type} color={iconColor} />
+                    </View>
+
+                    <View style={styles.shapeCardTextContainer}>
+                      <ThemedText
+                        type="smallBold"
+                        style={[styles.shapeCardLabel, { color: isSelected ? '#ffffff' : theme.text }]}
+                      >
+                        {s.label}
+                      </ThemedText>
+
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
 
           {/* Live Visualization Diagram */}
           <View style={styles.card}>
@@ -692,7 +781,7 @@ export default function HomeScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -889,5 +978,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     maxWidth: 260,
+  },
+  compactHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.four,
+    borderBottomWidth: 1,
+    zIndex: 10,
+  },
+  compactHeaderText: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  compactHeaderInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collapsibleSection: {
+    gap: Spacing.four,
   },
 });
