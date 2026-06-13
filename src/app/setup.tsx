@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,7 +17,7 @@ const UNIT_OPTIONS = [
   { label: 'Meter', value: 'm' },
 ];
 
-const HAND_UNITS = ['Standard', '4 hand (6 ft)', '4.5 hand (6.75 ft)', '5 hand (7.5 ft)', '5.5 hand (8.25 ft)', '6 hand (9 ft)', '6.5 hand (9.75 ft)', '7 hand (10.5 ft)', '7.5 hand (11.25 ft)', '8 hand (12 ft)', '8.5 hand (12.75 ft)', '9 hand (13.5 ft)', '9.5 hand (14.25 ft)', '10 hand (15 ft)'];
+const HAND_UNITS = ['Standard', '4 hand (6 ft)', '4.5 hand (6.75 ft)', '5 hand (7.5 ft)', '5.5 hand (8.25 ft)', '6 hand (9 ft)', '6.5 hand (9.75 ft)', '7 hand (10.5 ft)', '7.5 hand (11.25 ft)', '8 hand (12 ft)', '8.5 hand (12.75 ft)', '9 hand (13.5 ft)', '9.5 hand (14.25 ft)', '10 hand (15 ft)', 'Custom'];
 
 const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -114,6 +114,7 @@ export default function SetupScreen() {
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [selectedHandUnit, setSelectedHandUnit] = useState<string>('');
   const [showHandUnitPicker, setShowHandUnitPicker] = useState(false);
+  const [customDhurSqFt, setCustomDhurSqFt] = useState<string>('');
   const [validationError, setValidationError] = useState<string>('');
   const [loaded, setLoaded] = useState(false);
 
@@ -123,8 +124,10 @@ export default function SetupScreen() {
       try {
         const savedState = await SecureStore.getItemAsync('pref_state');
         const savedHandUnit = await SecureStore.getItemAsync('pref_hand_unit');
+        const savedCustomDhur = await SecureStore.getItemAsync('pref_custom_dhur_sqft');
         if (savedState) setSelectedState(savedState);
         if (savedHandUnit) setSelectedHandUnit(savedHandUnit);
+        if (savedCustomDhur) setCustomDhurSqFt(savedCustomDhur);
       } catch { }
       setLoaded(true);
     })();
@@ -141,7 +144,13 @@ export default function SetupScreen() {
     SecureStore.setItemAsync('pref_hand_unit', selectedHandUnit).catch(() => { });
   }, [selectedHandUnit, loaded]);
 
-  const isComplete = selectedUnit && selectedShape && selectedState && selectedHandUnit;
+  useEffect(() => {
+    if (!loaded) return;
+    SecureStore.setItemAsync('pref_custom_dhur_sqft', customDhurSqFt).catch(() => { });
+  }, [customDhurSqFt, loaded]);
+
+  const isComplete = selectedUnit && selectedShape && selectedState && selectedHandUnit &&
+    (selectedHandUnit !== 'Custom' || (customDhurSqFt && !isNaN(parseFloat(customDhurSqFt)) && parseFloat(customDhurSqFt) > 0));
 
   const handleStart = () => {
     if (!isComplete) {
@@ -151,7 +160,7 @@ export default function SetupScreen() {
     setValidationError('');
     router.replace({
       pathname: '/',
-      params: { unit: selectedUnit, shape: selectedShape, state: selectedState, handUnit: selectedHandUnit },
+      params: { unit: selectedUnit, shape: selectedShape, state: selectedState, handUnit: selectedHandUnit, customDhurSqFt },
     });
   };
 
@@ -216,6 +225,10 @@ export default function SetupScreen() {
             {selectedHandUnit && selectedHandUnit !== 'Standard' ? (
               <ThemedText type="default" style={styles.dhurPreview}>
                 {(() => {
+                  if (selectedHandUnit === 'Custom') {
+                    if (!customDhurSqFt || isNaN(parseFloat(customDhurSqFt)) || parseFloat(customDhurSqFt) <= 0) return null;
+                    return `${parseFloat(customDhurSqFt).toFixed(4)} sq ft (1 Dhur)`;
+                  }
                   const match = selectedHandUnit.match(/\(([\d.]+)\s*ft\)/);
                   if (!match) return null;
                   const ft = parseFloat(match[1]);
@@ -273,6 +286,22 @@ export default function SetupScreen() {
                 </ThemedText>
               </Pressable>
             </View>
+
+            {selectedHandUnit === 'Custom' && (
+              <View style={styles.customInputRow}>
+                <ThemedText type="smallBold" style={styles.customInputLabel}>
+                  Sq ft per Dhur
+                </ThemedText>
+                <TextInput
+                  style={[styles.customInput, { backgroundColor: theme.backgroundElement, color: theme.text, borderColor: '#000000ff' }]}
+                  value={customDhurSqFt}
+                  onChangeText={setCustomDhurSqFt}
+                  placeholder="e.g. 300.00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            )}
           </View>
 
           {/* State Picker Modal */}
@@ -539,6 +568,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
     borderWidth: 1.5,
+  },
+  customInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: Spacing.two,
+  },
+  customInputLabel: {
+    fontSize: 13,
+    minWidth: 100,
+  },
+  customInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: 1.5,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,

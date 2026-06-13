@@ -38,9 +38,15 @@ interface InputFields {
 // Parse dhur value from a hand unit string like "6.5 hand (9.75 ft)"
 // Returns null when the hand unit is missing or unparseable (error).
 // Returns { ft: null, dhur: null } when "Standard" is selected (dhur intentionally absent).
-function parseDhurFromHandUnit(handUnit?: string): { ft: number | null; dhur: number | null; isStandard: boolean } | null {
+function parseDhurFromHandUnit(handUnit?: string, customDhurSqFt?: string): { ft: number | null; dhur: number | null; isStandard: boolean } | null {
   if (!handUnit) return null;
   if (handUnit === 'Standard') return { ft: null, dhur: null, isStandard: true };
+  if (handUnit === 'Custom') {
+    if (!customDhurSqFt) return null;
+    const sqFt = parseFloat(customDhurSqFt);
+    if (isNaN(sqFt) || sqFt <= 0) return null;
+    return { ft: null, dhur: sqFt, isStandard: false };
+  }
   const match = handUnit.match(/\(([\d.]+)\s*ft\)/);
   if (!match) return null;
   const ft = parseFloat(match[1]);
@@ -49,11 +55,12 @@ function parseDhurFromHandUnit(handUnit?: string): { ft: number | null; dhur: nu
 }
 
 export default function HomeScreen() {
-  const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string }>();
+  const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
   const theme = useTheme();
   const [selectedShape, setSelectedShape] = useState<ShapeType>('triangle');
   const [unit, setUnit] = useState<string>('m');
   const [handUnit, setHandUnit] = useState<string>('');
+  const [customDhurSqFt, setCustomDhurSqFt] = useState<string>('');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputFields>({});
 
@@ -65,8 +72,9 @@ export default function HomeScreen() {
       setSelectedShape(params.shape as ShapeType);
       setUnit(params.unit);
       setHandUnit(params.handUnit || '');
+      setCustomDhurSqFt(params.customDhurSqFt || '');
     }
-  }, [params.shape, params.unit, params.handUnit]);
+  }, [params.shape, params.unit, params.handUnit, params.customDhurSqFt]);
 
   const handleInputChange = (field: keyof InputFields, value: string) => {
     // Only allow numbers and decimal point
@@ -83,7 +91,7 @@ export default function HomeScreen() {
   };
 
   // Parse dhur from the selected hand unit
-  const dhurInfo = parseDhurFromHandUnit(handUnit);
+  const dhurInfo = parseDhurFromHandUnit(handUnit, customDhurSqFt);
 
   // Perform Calculation & Build Step-by-Step Explanation
   const calculationResult = useMemo(() => {
