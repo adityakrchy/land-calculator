@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { usePathname, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  Pressable,
-  useWindowDimensions,
   Animated,
-  Platform,
-  useColorScheme,
+  BackHandler,
   Image,
   PanResponder,
-  BackHandler,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useColorScheme,
+  useWindowDimensions,
+  View,
 } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from './themed-text';
 import { Colors, Spacing } from '@/constants/theme';
+import { ThemedText } from './themed-text';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -296,10 +296,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
         <View style={styles.drawerHeaderRow}>
           <View style={styles.drawerHeaderText}>
             <ThemedText type="subtitle" style={styles.brandTitle}>
-              Land Calculator
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Precision Tool v1.0
+              Bhu Maapi
             </ThemedText>
           </View>
           {!isWideScreen && (

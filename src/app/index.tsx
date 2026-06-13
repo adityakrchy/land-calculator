@@ -276,7 +276,7 @@ export default function HomeScreen() {
     const { sqFt, dhurSqFt } = calculationResult;
 
     const conversions: { label: string; value: string }[] = [
-      { label: 'Kadi Sq', value: (sqFt * 0.66 * 0.66).toFixed(2) },
+      { label: 'Kadi Sq', value: (sqFt * 2.29568).toFixed(2) },
       { label: 'Cent / Decimal', value: (sqFt / 435.6).toFixed(2) },
       { label: 'Dhur', value: dhurSqFt ? (sqFt / dhurSqFt).toFixed(4) : '—' },
       { label: 'Katha', value: (sqFt / (dhurSqFt * 20)).toFixed(2) },
