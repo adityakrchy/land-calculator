@@ -1,7 +1,7 @@
+import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +15,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { generateTriangle, calculateInteriorAngles } from '@/utils/geometry';
+import { calculateInteriorAngles, generateTriangle } from '@/utils/geometry';
 
 type ShapeType = 'triangle' // | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
 
@@ -35,84 +35,23 @@ interface InputFields {
   h2?: string; // Perpendicular 2 for Quadrilateral
 }
 
-const SHAPES: { type: ShapeType; label: string; icon: string; }[] = [
-  { type: 'triangle', label: 'Triangle', icon: 'triangle' }
-  // { type: 'rectangle', label: 'Rectangle', icon: 'rectangle' },
-  // { type: 'parallelogram', label: 'Parallelogram', icon: 'square.skew.ltr' },
-  // { type: 'trapezoid', label: 'Trapezoid', icon: 'trapezoid' },
-  // { type: 'quadrilateral', label: 'Quadrilateral', icon: 'square.dashed' },
-];
-
-const UNITS = ['cm', 'm', 'in', 'ft', 'mm'];
-
-const ShapeIcon = ({ type, color }: { type: ShapeType; color: string }) => {
-  switch (type) {
-    case 'triangle':
-      return (
-        <View style={{ width: 0, height: 0, borderLeftWidth: 16, borderRightWidth: 16, borderBottomWidth: 28, borderBottomColor: color, borderLeftColor: 'transparent', borderRightColor: 'transparent', backgroundColor: 'transparent' }} />
-      );
-    // case 'rectangle':
-    //   return (
-    //     <View style={{ width: 36, height: 24, borderWidth: 2, borderColor: color, borderRadius: 2 }} />
-    //   );
-    // case 'parallelogram':
-    //   return (
-    //     <View style={{ width: 32, height: 24, borderWidth: 2, borderColor: color, transform: [{ skewX: '-20deg' }] }} />
-    //   );
-    // case 'trapezoid':
-    //   return (
-    //     <View style={{ width: 18, height: 0, borderBottomWidth: 24, borderBottomColor: color, borderLeftWidth: 8, borderLeftColor: 'transparent', borderRightWidth: 8, borderRightColor: 'transparent', backgroundColor: 'transparent' }} />
-    //   );
-    // case 'quadrilateral':
-    //   return (
-    //     <View style={{ width: 26, height: 26, borderWidth: 2, borderColor: color, transform: [{ rotate: '15deg' }, { skewY: '-10deg' }] }} />
-    //   );
-    default:
-      return null;
-  }
-};
-
 export default function HomeScreen() {
+  const params = useLocalSearchParams<{ unit?: string; shape?: string }>();
   const theme = useTheme();
   const [selectedShape, setSelectedShape] = useState<ShapeType>('triangle');
-  const [unit, setUnit] = useState<string>('cm');
+  const [unit, setUnit] = useState<string>('m');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputFields>({});
 
-  // ── Collapsing header on scroll ────────────────────────────────────────
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const COLLAPSE_DISTANCE = 200;
-
-  const collapsibleOpacity = scrollY.interpolate({
-    inputRange: [0, COLLAPSE_DISTANCE],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-
-  const collapsibleTranslateY = scrollY.interpolate({
-    inputRange: [0, COLLAPSE_DISTANCE],
-    outputRange: [0, -15],
-    extrapolate: 'clamp',
-  });
-
-  const compactOpacity = scrollY.interpolate({
-    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-  const compactTranslateY = scrollY.interpolate({
-    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE],
-    outputRange: [-32, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Reset inputs when shape changes
-  const handleShapeSelect = (shape: ShapeType) => {
-    setSelectedShape(shape);
-    setInputs({});
-    setActiveField(null);
-  };
+  // Redirect to setup if no params provided
+  useEffect(() => {
+    if (!params.shape || !params.unit) {
+      router.replace('/setup');
+    } else {
+      setSelectedShape(params.shape as ShapeType);
+      setUnit(params.unit);
+    }
+  }, [params.shape, params.unit]);
 
   const handleInputChange = (field: keyof InputFields, value: string) => {
     // Only allow numbers and decimal point
@@ -130,11 +69,6 @@ export default function HomeScreen() {
 
   // Perform Calculation & Build Step-by-Step Explanation
   const calculationResult = useMemo(() => {
-    const parseFloatVal = (val?: string) => {
-      const num = parseFloat(val || '0');
-      return isNaN(num) || num < 0 ? 0 : num;
-    };
-
     let area = 0;
     let areaInSqM = 0;
     let isValid = false;
@@ -283,11 +217,9 @@ export default function HomeScreen() {
     // Conversion factors to square meters (m²)
     // Based on squaring the linear conversion factors to meters
     const toMeterFactor: Record<string, number> = {
-      'mm': 0.001,
-      'cm': 0.01,
-      'in': 0.0254,
       'ft': 0.3048,
-      'm': 1
+      'm': 1,
+      'kadi': 0.4572,
     };
 
     if (isValid) {
@@ -295,33 +227,31 @@ export default function HomeScreen() {
       areaInSqM = area * (factor * factor);
     }
 
-    return { area, areaInSqM, isValid, hasInputs, solvedTriangle };
+    // Always compute sq ft as the primary conversion base
+    const sqFt = areaInSqM * 10.7639;
+
+    return { area, areaInSqM, sqFt, isValid, hasInputs, solvedTriangle };
   }, [selectedShape, inputs, unit]);
 
   const renderAreaConversions = () => {
     if (!calculationResult.isValid) return null;
-    const { areaInSqM } = calculationResult;
-
-    const sqFt = areaInSqM * 10.7639;
+    const { sqFt } = calculationResult;
 
     const conversions: { label: string; value: string }[] = [
-      { label: 'Kadi Sq', value: (sqFt / 2.25).toFixed(2) },
+      { label: 'Kadi Sq', value: (sqFt * 0.66 * 0.66).toFixed(2) },
       { label: 'Cent / Decimal', value: (sqFt / 435.6).toFixed(2) },
       { label: 'Dhur', value: (sqFt / 95.0625).toFixed(2) },
       { label: 'Katha', value: (sqFt / 1901.25).toFixed(2) },
       { label: 'Bigha', value: (sqFt / 38025).toFixed(3) },
-      { label: 'Kasma', value: (sqFt / 47.53125).toFixed(2) },
+      // { label: 'Kasma', value: (sqFt / 47.53125).toFixed(2) },
       { label: 'Acre', value: (sqFt / 43560).toFixed(4) },
       { label: 'Hectare', value: (sqFt / 107639).toFixed(4) },
       { label: 'Sq Yard / Gaj', value: (sqFt / 9).toFixed(2) },
+      { label: 'Sq Mtr', value: (sqFt / 9).toFixed(2) },
     ];
 
     return (
       <View style={styles.conversionsSection}>
-        <View style={styles.divider} />
-        <ThemedText type="smallBold" style={styles.stepsTitle}>
-          Converted Land Area
-        </ThemedText>
         <View style={styles.conversionsList}>
           {conversions.map((item, idx) => (
             <View
@@ -365,32 +295,36 @@ export default function HomeScreen() {
 
       if (unit === 'ft') {
         sideFields.push(
-          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? formatFtInput(s.a) : 'e.g. 4.7' },
-          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? formatFtInput(s.b) : 'e.g. 5.6' },
-          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? formatFtInput(s.c) : 'e.g. 6.8' },
+          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? formatFtInput(s.a) : '0.0' },
+          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? formatFtInput(s.b) : '0.0' },
+          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? formatFtInput(s.c) : '0.0' },
         );
       } else {
         sideFields.push(
-          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? s.a.toFixed(2) : 'e.g. 5' },
-          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? s.b.toFixed(2) : 'e.g. 6' },
-          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? s.c.toFixed(2) : 'e.g. 7' },
+          { key: 'sideA', label: 'Side A', placeholder: (s && !isNaN(s.a) && !inputs.sideA) ? s.a.toFixed(2) : '0' },
+          { key: 'sideB', label: 'Side B', placeholder: (s && !isNaN(s.b) && !inputs.sideB) ? s.b.toFixed(2) : '0' },
+          { key: 'sideC', label: 'Side C', placeholder: (s && !isNaN(s.c) && !inputs.sideC) ? s.c.toFixed(2) : '0' },
         );
       }
 
-      const unitSuffix = unit === 'ft' ? 'ft' : unit;
+      const unitSuffix = unit === 'kadi' ? 'kadi' : unit;
 
       const hasAngles = s && !isNaN(s.A) && !isNaN(s.B) && !isNaN(s.C) && s.A > 0 && s.B > 0 && s.C > 0;
       const angleLabels = ['A', 'B', 'C'];
 
       return (
-        <>
-          {/* Sides - each full-width row */}
-          <View style={styles.sidesSection}>
-            {sideFields.map(f => (
-              <View key={f.key} style={styles.sideRow}>
-                <ThemedText type="small" style={styles.sideLabel}>
+        <View style={styles.triangleRows}>
+          {sideFields.map((f, idx) => {
+            const label = angleLabels[idx];
+            const angleVal = label === 'A' ? s?.A : label === 'B' ? s?.B : s?.C;
+            const displayVal = hasAngles ? `${angleVal!.toFixed(1)}°` : '0°';
+            return (
+              <View key={f.key} style={styles.triangleRow}>
+                {/* Side label */}
+                <ThemedText type="small" style={styles.triangleRowLabel}>
                   {f.label}
                 </ThemedText>
+                {/* Side input */}
                 <View style={{ position: 'relative', flex: 1 }}>
                   <TextInput
                     style={[
@@ -398,65 +332,52 @@ export default function HomeScreen() {
                       {
                         backgroundColor: theme.backgroundElement,
                         color: theme.text,
-                        borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
+                        borderColor: activeField === f.key ? '#3c87f7' : '#000000ff',
                         paddingRight: 28,
                       },
                     ]}
                     value={inputs[f.key] || ''}
                     onChangeText={val => handleInputChange(f.key, val)}
-                    placeholder={f.placeholder}
+                    placeholder={`${f.placeholder} ${unitSuffix}`}
                     placeholderTextColor={theme.textSecondary}
                     keyboardType="decimal-pad"
                     onFocus={() => setActiveField(f.key)}
                     onBlur={() => setActiveField(null)}
                   />
-                  <View style={styles.inputSuffix}>
+                  {/* <View style={styles.inputSuffix}>
                     <ThemedText type="small" themeColor="textSecondary">
                       {unitSuffix}
                     </ThemedText>
-                  </View>
+                  </View> */}
+                </View>
+                {/* Angle label */}
+                <ThemedText type="small" style={styles.triangleRowAngleLabel}>
+                  ∠{label}
+                </ThemedText>
+                {/* Angle value box */}
+                <View
+                  style={[
+                    styles.triangleRowAngleBox,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      borderColor: activeField === `angle${label}` ? '#3c87f7' : '#000000ff',
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    type="defaultSemiBold"
+                    style={[
+                      styles.angleValue,
+                      { color: hasAngles ? '#3c87f7' : theme.textSecondary },
+                    ]}
+                  >
+                    {displayVal}
+                  </ThemedText>
                 </View>
               </View>
-            ))}
-          </View>
-
-          {/* Angles - 3-column display */}
-          <View style={styles.anglesSection}>
-            <View style={styles.anglesRow}>
-              {angleLabels.map((label) => {
-                const angleVal = label === 'A' ? s?.A : label === 'B' ? s?.B : s?.C;
-                const displayVal =
-                  hasAngles ? `${angleVal!.toFixed(1)}°` : '—';
-                return (
-                  <View key={label} style={styles.angleItem}>
-                    <ThemedText type="small" style={styles.angleLabel}>
-                      ∠{label}
-                    </ThemedText>
-                    <View
-                      style={[
-                        styles.angleValueBox,
-                        {
-                          backgroundColor: theme.backgroundElement,
-                          borderColor: activeField === `angle${label}` ? '#3c87f7' : theme.backgroundSelected,
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        type="defaultSemiBold"
-                        style={[
-                          styles.angleValue,
-                          { color: hasAngles ? '#3c87f7' : theme.textSecondary },
-                        ]}
-                      >
-                        {displayVal}
-                      </ThemedText>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        </>
+            );
+          })}
+        </View>
       );
     }
 
@@ -594,203 +515,69 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-        {/* Compact header that appears on scroll */}
-        <Animated.View
-          style={[
-            styles.compactHeader,
-            {
-              backgroundColor: theme.backgroundElement,
-              borderBottomColor: theme.backgroundSelected,
-              opacity: compactOpacity,
-              transform: [{ translateY: compactTranslateY }],
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <View style={styles.compactHeaderInner}>
-            <ThemedText
-              type="default"
-              style={[
-                styles.compactHeaderText,
-                { color: '#3c87f7' },
-              ]}
-            >
+        {/* Top bar — shape . unit */}
+        <View style={[styles.compactHeader, { backgroundColor: theme.backgroundElement, borderBottomColor: theme.backgroundSelected }]}>
+          <Pressable onPress={() => router.replace('/setup')} style={styles.compactHeaderInner}>
+            <ThemedText type="default" style={[styles.compactHeaderText, { color: '#3c87f7' }]}>
               {selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
             </ThemedText>
-            <ThemedText
-              type="default"
-              style={[
-                styles.compactHeaderText,
-                { color: theme.textSecondary, marginHorizontal: 6 },
-              ]}
-            >
+            <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.textSecondary, marginHorizontal: 6 }]}>
               ·
             </ThemedText>
-            <ThemedText
-              type="default"
-              style={[
-                styles.compactHeaderText,
-                { color: theme.text },
-              ]}
-            >
-              {unit}
+            <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.text }]}>
+              {unit === 'ft' ? 'Feet' : unit === 'kadi' ? 'Kadi' : 'Meter'}
             </ThemedText>
-          </View>
-        </Animated.View>
+          </Pressable>
+        </View>
 
-        <Animated.ScrollView
+        <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
-          )}
-          scrollEventThrottle={16}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.titleRow}>
-              <ThemedText type="subtitle" style={styles.headerTitle}>
-                Area Finder
-              </ThemedText>
-              <View style={styles.badge}>
-                <ThemedText type="code" style={styles.badgeText}>
-                  v1.0
+
+          {/* Live Visualization Diagram + Dimensions (no gap) */}
+          <View>
+            <View style={styles.card}>
+              {/* <ThemedText type="smallBold" style={styles.cardTitle}>
+                Interactive Diagram
+              </ThemedText> */}
+              <ShapeDiagram
+                shape={selectedShape}
+                activeField={activeField}
+                sides={sideData.sides}
+                sideLabels={sideData.sideLabels}
+              />
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.formHeaderRow}>
+                <ThemedText type="smallBold" style={styles.cardTitle}>
+                  Enter Dimensions
                 </ThemedText>
+                <Pressable
+                  onPress={() => setInputs({})}
+                  style={styles.clearButton}
+                >
+                  <ThemedText type="small" style={{ color: '#ff4d4f' }}>
+                    Clear All
+                  </ThemedText>
+                </Pressable>
               </View>
+              {renderInputFields()}
             </View>
-            <ThemedText themeColor="textSecondary" style={styles.headerSubtitle}>
-              Select a geometric shape and enter its dimensions to calculate the area.
-            </ThemedText>
-          </View>
-
-          {/* Collapsible Section: Unit Selector + Shape Cards */}
-          <Animated.View
-            style={[
-              styles.collapsibleSection,
-              {
-                opacity: collapsibleOpacity,
-                transform: [{ translateY: collapsibleTranslateY }],
-              },
-            ]}
-          >
-            {/* Unit Selector */}
-            <View style={styles.sectionHeader}>
-              <ThemedText type="smallBold">Select Measurement Unit</ThemedText>
-              <View style={styles.unitSelector}>
-                {UNITS.map(u => (
-                  <Pressable
-                    key={u}
-                    onPress={() => setUnit(u)}
-                    style={[
-                      styles.unitButton,
-                      unit === u && { backgroundColor: '#3c87f7' },
-                    ]}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={{ color: unit === u ? '#ffffff' : theme.textSecondary }}
-                    >
-                      {u}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Horizontal Shape Cards */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.shapeSelectorScroll}
-            >
-              {SHAPES.map(s => {
-                const isSelected = selectedShape === s.type;
-                const iconColor = isSelected ? '#ffffff' : theme.text;
-                return (
-                  <Pressable
-                    key={s.type}
-                    onPress={() => handleShapeSelect(s.type)}
-                    style={[
-                      styles.shapeCard,
-                      {
-                        backgroundColor: isSelected ? '#3c87f7' : theme.backgroundElement,
-                        borderColor: isSelected ? '#3c87f7' : theme.backgroundSelected,
-                      },
-                    ]}
-                  >
-                    {isSelected && (
-                      <View style={styles.checkmarkBadge}>
-                        <SymbolView name="checkmark.circle.fill" size={14} tintColor="#ffffff" />
-                      </View>
-                    )}
-
-                    <View style={styles.shapeIconCenterContainer}>
-                      <ShapeIcon type={s.type} color={iconColor} />
-                    </View>
-
-                    <View style={styles.shapeCardTextContainer}>
-                      <ThemedText
-                        type="smallBold"
-                        style={[styles.shapeCardLabel, { color: isSelected ? '#ffffff' : theme.text }]}
-                      >
-                        {s.label}
-                      </ThemedText>
-
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Animated.View>
-
-          {/* Live Visualization Diagram */}
-          <View style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardTitle}>
-              Interactive Diagram
-            </ThemedText>
-            <ShapeDiagram
-              shape={selectedShape}
-              activeField={activeField}
-              sides={sideData.sides}
-              sideLabels={sideData.sideLabels}
-            />
-          </View>
-
-          {/* Dimension Form Fields */}
-          <View style={styles.card}>
-            <View style={styles.formHeaderRow}>
-              <ThemedText type="smallBold" style={styles.cardTitle}>
-                Enter Dimensions
-              </ThemedText>
-              <Pressable
-                onPress={() => setInputs({})}
-                style={styles.clearButton}
-              >
-                <ThemedText type="small" style={{ color: '#ff4d4f' }}>
-                  Clear All
-                </ThemedText>
-              </Pressable>
-            </View>
-            {renderInputFields()}
           </View>
 
           {/* Live Result and Step-by-Step Solution */}
           <View style={[styles.card, styles.resultCard, { borderColor: '#3c87f7' }]}>
-            <ThemedText type="smallBold" style={styles.resultTitle}>
-              Calculation Result
-            </ThemedText>
             <View style={styles.resultContainer}>
               {calculationResult.hasInputs ? (
                 <View>
                   {calculationResult.isValid ? (
                     <>
                       <View style={styles.totalSqFtRow}>
-                        <ThemedText type="defaultSemiBold" style={styles.totalSqFtLabel}>
-                          Total Sq Foot
-                        </ThemedText>
-                        <ThemedText type="title" style={styles.resultValue}>
-                          {(calculationResult.areaInSqM * 10.7639).toFixed(2)}{' '}
+
+                        <ThemedText type="subtitle" style={styles.resultValue}>
+                          {calculationResult.sqFt.toFixed(2)}{' '}
                           <ThemedText type="subtitle" style={styles.resultUnit}>
                             sq ft
                           </ThemedText>
@@ -812,14 +599,15 @@ export default function HomeScreen() {
               ) : (
                 <View style={styles.waitingContainer}>
                   <SymbolView name="square.and.pencil" size={28} tintColor={theme.textSecondary} />
-                  <ThemedText themeColor="textSecondary" style={styles.waitingText}>
-                    Please enter positive values for all dimensions to see the step-by-step solution.
+                  <ThemedText themeColor="text" style={styles.waitingText}>
+                    Please enter positive values.
                   </ThemedText>
                 </View>
               )}
             </View>
           </View>
-        </Animated.ScrollView>
+
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -845,12 +633,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+    paddingTop: Spacing.one,
     paddingBottom: Spacing.five,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     width: '100%',
-    gap: Spacing.four,
+    gap: Spacing.one,
   },
   header: {
     gap: Spacing.one,
@@ -878,62 +666,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  sectionHeader: {
-    gap: Spacing.two,
-  },
-  unitSelector: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  unitButton: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  shapeSelectorScroll: {
-    gap: Spacing.two,
-    paddingRight: Spacing.four,
-  },
-  shapeCard: {
-    width: 100,
-    height: 95,
-    padding: Spacing.two,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
-    position: 'relative',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  checkmarkBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 1,
-  },
-  shapeIconCenterContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: Spacing.one,
-  },
-  shapeCardTextContainer: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  shapeCardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  shapeCardDesc: {
-    fontSize: 9,
-    textAlign: 'center',
-    marginTop: 2,
-  },
   card: {
-    padding: Spacing.three,
+    padding: Spacing.one,
     borderRadius: Spacing.four,
     borderWidth: 1.5,
     borderColor: 'rgba(128,128,128,0.15)',
@@ -986,39 +720,36 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
 
-  // Triangle sides
-  sidesSection: {
+  // Triangle row-based layout — each side + angle on one horizontal line
+  triangleRows: {
     gap: Spacing.two,
   },
-  sideRow: {
+  triangleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  sideLabel: {
+  triangleRowLabel: {
     fontSize: 14,
     fontWeight: '600',
     minWidth: 52,
   },
-
-  // Triangle angles display
-  anglesSection: {
-    marginTop: Spacing.two,
-  },
-  anglesRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  angleItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  angleLabel: {
-    fontSize: 14,
+  triangleRowAngleLabel: {
+    fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.5,
-    color: '#3c87f7',
+    color: '#000000ff',
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  triangleRowAngleBox: {
+    width: 72,
+    height: 42,
+    borderWidth: 1.5,
+    borderRadius: Spacing.two,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
   },
   angleValueBox: {
     width: '100%',
@@ -1051,6 +782,7 @@ const styles = StyleSheet.create({
   },
   resultUnit: {
     fontWeight: '600',
+    fontSize: 24
   },
   formulaText: {
     marginTop: Spacing.one,
@@ -1079,22 +811,17 @@ const styles = StyleSheet.create({
   },
   waitingText: {
     textAlign: 'center',
-    fontSize: 13,
+    fontSize: 18,
+    fontWeight: 600,
     lineHeight: 18,
     maxWidth: 260,
   },
   compactHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
     borderBottomWidth: 1,
-    zIndex: 10,
   },
   compactHeaderText: {
     fontSize: 17,
@@ -1106,15 +833,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  collapsibleSection: {
-    gap: Spacing.four,
-  },
 
   // Total Sq Ft row
   totalSqFtRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: Spacing.two,
+    textAlign: 'center',
+    alignSelf: 'center',
   },
   totalSqFtLabel: {
     fontSize: 15,
@@ -1126,15 +852,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   conversionsList: {
-    gap: Spacing.one,
-    marginTop: Spacing.two,
+    // gap: Spacing.one,
+    // marginTop: Spacing.two,
   },
   conversionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
     borderRadius: Spacing.two,
     borderWidth: 1,
   },

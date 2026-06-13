@@ -43,6 +43,12 @@ const NAV_ITEMS: DrawerItem[] = [
     iconSource: require('@/assets/images/tabIcons/home.png'),
   },
   {
+    name: 'converter',
+    label: 'Converter',
+    path: '/converter',
+    iconSource: require('@/assets/images/tabIcons/home.png'),
+  },
+  {
     name: 'plot',
     label: 'Plot',
     path: '/plot',

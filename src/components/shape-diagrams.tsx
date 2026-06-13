@@ -1,11 +1,11 @@
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { StyleSheet, View, Text as RNText } from 'react-native';
-import { ThemedText } from './themed-text';
-import Svg, { Path } from 'react-native-svg';
+import { calculateInteriorAngles, generateTriangle } from '@/utils/geometry';
+import { Text as RNText, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { generateTriangle, calculateInteriorAngles, type Point } from '@/utils/geometry';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
+import { ThemedText } from './themed-text';
 
 interface ShapeDiagramProps {
   shape: 'triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
@@ -143,7 +143,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         const offsetY = (180 - scaledH) / 2;
 
         // Scale and shift coordinates (invert Y axis for React Native)
-        const transformPoint = (p: {x: number, y: number}) => ({
+        const transformPoint = (p: { x: number, y: number }) => ({
           x: (p.x - minX) * scale + offsetX,
           y: 180 - ((p.y - minY) * scale + offsetY)
         });
@@ -156,7 +156,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         const centroidX = (vA.x + vB.x + vC.x) / 3;
         const centroidY = (vA.y + vB.y + vC.y) / 3;
 
-        const renderDynamicLine = (start: {x: number, y: number}, end: {x: number, y: number}, styleHighlight: any, label: string) => {
+        const renderDynamicLine = (start: { x: number, y: number }, end: { x: number, y: number }, styleHighlight: any, label: string) => {
           const length = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
           const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
           const midX = (start.x + end.x) / 2;
@@ -180,7 +180,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         // Angles are now computed by calculateInteriorAngles above (same as plot.tsx)
 
         // Helper to push text outward from centroid (in screen space)
-        const getLabelPos = (p: {x: number, y: number}, distanceAway: number) => {
+        const getLabelPos = (p: { x: number, y: number }, distanceAway: number) => {
           const vx = p.x - centroidX;
           const vy = p.y - centroidY;
           const len = Math.sqrt(vx * vx + vy * vy) || 1;
@@ -188,20 +188,20 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         };
 
         // Helper to push text inward from vertex (in screen space)
-        const getInteriorPos = (p: {x: number, y: number}, distanceInside: number) => {
-            const vx = centroidX - p.x;
-            const vy = centroidY - p.y;
-            const len = Math.sqrt(vx * vx + vy * vy) || 1;
-            return { x: p.x + (vx / len) * distanceInside, y: p.y + (vy / len) * distanceInside };
+        const getInteriorPos = (p: { x: number, y: number }, distanceInside: number) => {
+          const vx = centroidX - p.x;
+          const vy = centroidY - p.y;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * distanceInside, y: p.y + (vy / len) * distanceInside };
         };
 
-        const renderArc = (v: {x: number, y: number}, adj1: {x: number, y: number}, adj2: {x: number, y: number}, R: number, color: string) => {
+        const renderArc = (v: { x: number, y: number }, adj1: { x: number, y: number }, adj2: { x: number, y: number }, R: number, color: string) => {
           const u = { x: adj1.x - v.x, y: adj1.y - v.y };
           const w = { x: adj2.x - v.x, y: adj2.y - v.y };
-          const lenU = Math.sqrt(u.x*u.x + u.y*u.y) || 1;
-          const lenW = Math.sqrt(w.x*w.x + w.y*w.y) || 1;
-          const nu = { x: u.x/lenU, y: u.y/lenU };
-          const nw = { x: w.x/lenW, y: w.y/lenW };
+          const lenU = Math.sqrt(u.x * u.x + u.y * u.y) || 1;
+          const lenW = Math.sqrt(w.x * w.x + w.y * w.y) || 1;
+          const nu = { x: u.x / lenU, y: u.y / lenU };
+          const nw = { x: w.x / lenW, y: w.y / lenW };
           const A = { x: v.x + nu.x * R, y: v.y + nu.y * R };
           const B = { x: v.x + nw.x * R, y: v.y + nw.y * R };
           const cross = nu.x * nw.y - nu.y * nw.x;
@@ -497,9 +497,9 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
   return (
     <GestureDetector gesture={composed}>
       <Animated.View style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
-        <ThemedText style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, color: theme.textSecondary, zIndex: 10, opacity: 0.6 }}>
+        {/* <ThemedText style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, color: theme.textSecondary, zIndex: 10, opacity: 0.6 }}>
           Pinch to zoom, drag to pan. Double tap to reset.
-        </ThemedText>
+        </ThemedText> */}
         <Animated.View style={animatedStyle}>
           {renderShape()}
         </Animated.View>
