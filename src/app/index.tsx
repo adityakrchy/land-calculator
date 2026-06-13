@@ -247,7 +247,7 @@ export default function HomeScreen() {
       { label: 'Acre', value: (sqFt / 43560).toFixed(4) },
       { label: 'Hectare', value: (sqFt / 107639).toFixed(4) },
       { label: 'Sq Yard / Gaj', value: (sqFt / 9).toFixed(2) },
-      { label: 'Sq Mtr', value: (sqFt / 9).toFixed(2) },
+      { label: 'Sq Mtr', value: (sqFt / 10.7584).toFixed(2) },
     ];
 
     return (
@@ -537,7 +537,7 @@ export default function HomeScreen() {
 
           {/* Live Visualization Diagram + Dimensions (no gap) */}
           <View>
-            <View style={styles.card}>
+            <View style={styles.diagramCard}>
               {/* <ThemedText type="smallBold" style={styles.cardTitle}>
                 Interactive Diagram
               </ThemedText> */}
@@ -672,6 +672,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(128,128,128,0.15)',
     gap: Spacing.three,
+  },
+  diagramCard: {
+    paddingVertical: 0,
+    paddingHorizontal: Spacing.one,
+    borderRadius: Spacing.four,
+    borderWidth: 2,
+    borderColor: '#3c87f7',
+    gap: Spacing.one,
   },
   cardTitle: {
     fontSize: 14,
