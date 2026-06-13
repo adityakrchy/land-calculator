@@ -166,7 +166,7 @@ export default function SetupScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.safeArea}>
         {/* Scrollable content — fills space above the button */}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.five,
+    paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
