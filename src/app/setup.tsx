@@ -151,7 +151,7 @@ export default function SetupScreen() {
     setValidationError('');
     router.replace({
       pathname: '/',
-      params: { unit: selectedUnit, shape: selectedShape, state: selectedState },
+      params: { unit: selectedUnit, shape: selectedShape, state: selectedState, handUnit: selectedHandUnit },
     });
   };
 

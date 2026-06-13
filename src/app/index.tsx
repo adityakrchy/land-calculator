@@ -35,11 +35,25 @@ interface InputFields {
   h2?: string; // Perpendicular 2 for Quadrilateral
 }
 
+// Parse dhur value from a hand unit string like "6.5 hand (9.75 ft)"
+// Returns null when the hand unit is missing or unparseable (error).
+// Returns { ft: null, dhur: null } when "Standard" is selected (dhur intentionally absent).
+function parseDhurFromHandUnit(handUnit?: string): { ft: number | null; dhur: number | null; isStandard: boolean } | null {
+  if (!handUnit) return null;
+  if (handUnit === 'Standard') return { ft: null, dhur: null, isStandard: true };
+  const match = handUnit.match(/\(([\d.]+)\s*ft\)/);
+  if (!match) return null;
+  const ft = parseFloat(match[1]);
+  if (isNaN(ft) || ft <= 0) return null;
+  return { ft, dhur: ft * ft, isStandard: false };
+}
+
 export default function HomeScreen() {
-  const params = useLocalSearchParams<{ unit?: string; shape?: string }>();
+  const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string }>();
   const theme = useTheme();
   const [selectedShape, setSelectedShape] = useState<ShapeType>('triangle');
   const [unit, setUnit] = useState<string>('m');
+  const [handUnit, setHandUnit] = useState<string>('');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputFields>({});
 
@@ -50,8 +64,9 @@ export default function HomeScreen() {
     } else {
       setSelectedShape(params.shape as ShapeType);
       setUnit(params.unit);
+      setHandUnit(params.handUnit || '');
     }
-  }, [params.shape, params.unit]);
+  }, [params.shape, params.unit, params.handUnit]);
 
   const handleInputChange = (field: keyof InputFields, value: string) => {
     // Only allow numbers and decimal point
@@ -67,11 +82,16 @@ export default function HomeScreen() {
     }));
   };
 
+  // Parse dhur from the selected hand unit
+  const dhurInfo = parseDhurFromHandUnit(handUnit);
+
   // Perform Calculation & Build Step-by-Step Explanation
   const calculationResult = useMemo(() => {
     let area = 0;
     let areaInSqM = 0;
     let isValid = false;
+    let isDhurValid = false;
+    let dhurSqFt = 0;
     let hasInputs = false;
     let solvedTriangle: { a: number; b: number; c: number; A: number; B: number; C: number } | null = null;
 
@@ -230,19 +250,29 @@ export default function HomeScreen() {
     // Always compute sq ft as the primary conversion base
     const sqFt = areaInSqM * 10.7639;
 
-    return { area, areaInSqM, sqFt, isValid, hasInputs, solvedTriangle };
-  }, [selectedShape, inputs, unit]);
+    // Validate dhur
+    if (dhurInfo) {
+      isDhurValid = true;
+      dhurSqFt = dhurInfo.isStandard ? 0 : (dhurInfo.dhur ?? 0); // 0 = Standard (no dhur value)
+    }
+
+    // Override isValid: only fail if dhurInfo is null (missing/unparseable hand unit)
+    // Standard is allowed — it just won't show a dhur conversion
+    const finalValid = isValid && (dhurInfo !== null);
+
+    return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle };
+  }, [selectedShape, inputs, unit, dhurInfo]);
 
   const renderAreaConversions = () => {
     if (!calculationResult.isValid) return null;
-    const { sqFt } = calculationResult;
+    const { sqFt, dhurSqFt } = calculationResult;
 
     const conversions: { label: string; value: string }[] = [
       { label: 'Kadi Sq', value: (sqFt * 0.66 * 0.66).toFixed(2) },
       { label: 'Cent / Decimal', value: (sqFt / 435.6).toFixed(2) },
-      { label: 'Dhur', value: (sqFt / 95.0625).toFixed(2) },
-      { label: 'Katha', value: (sqFt / 1901.25).toFixed(2) },
-      { label: 'Bigha', value: (sqFt / 38025).toFixed(3) },
+      { label: 'Dhur', value: dhurSqFt ? (sqFt / dhurSqFt).toFixed(4) : '—' },
+      { label: 'Katha', value: (sqFt / (dhurSqFt * 20)).toFixed(2) },
+      { label: 'Bigha', value: (sqFt / (dhurSqFt * 20 * 20)).toFixed(3) },
       // { label: 'Kasma', value: (sqFt / 47.53125).toFixed(2) },
       { label: 'Acre', value: (sqFt / 43560).toFixed(4) },
       { label: 'Hectare', value: (sqFt / 107639).toFixed(4) },
@@ -588,7 +618,9 @@ export default function HomeScreen() {
                     <View style={styles.invalidContainer}>
                       <SymbolView name="exclamationmark.triangle.fill" size={24} tintColor="#ff4d4f" />
                       <ThemedText style={styles.invalidText}>
-                        Invalid Geometry Constraint
+                        {calculationResult.isDhurValid
+                          ? 'Invalid Geometry Constraint'
+                          : 'No local unit selected. Please choose a hand unit or Standard in setup.'}
                       </ThemedText>
                     </View>
                   )}
