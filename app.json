@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bhu Maapi",
     "slug": "bhu-maapi",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mycalculator",
@@ -46,8 +46,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "49a8e82a-06f1-410b-a200-009078cefff8"
+        "projectId": "c289dbbf-9c0d-4e28-b33b-922c666920ca"
       }
-    }
+    },
+    "owner": "adityakrchy16"
   }
 }

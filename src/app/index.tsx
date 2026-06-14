@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,24 +16,25 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { calculateInteriorAngles, generateTriangle } from '@/utils/geometry';
+import { calculateArea, calculateInteriorAngles, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
 
-type ShapeType = 'triangle' // | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
+type ShapeType = 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'quadrilateral';
 
 interface InputFields {
   base?: string;
   height?: string;
   length?: string;
   width?: string;
-  sideA?: string; // Top base for Trapezoid, Side a for Triangle
-  sideB?: string; // Bottom base for Trapezoid, Side b for Triangle
-  sideC?: string; // Side c for Triangle
+  sideA?: string; // Top base for Trapezoid, Side a for Triangle, AB for Quadrilateral
+  sideB?: string; // Bottom base for Trapezoid, Side b for Triangle, BC for Quadrilateral
+  sideC?: string; // Side c for Triangle, CD for Quadrilateral
+  sideD?: string; // DA for Quadrilateral
   angleA?: string;
   angleB?: string;
   angleC?: string;
-  diagonal?: string; // For Quadrilateral
-  h1?: string; // Perpendicular 1 for Quadrilateral
-  h2?: string; // Perpendicular 2 for Quadrilateral
+  diagonal?: string;
+  h1?: string;
+  h2?: string;
 }
 
 // Parse dhur value from a hand unit string like "6.5 hand (9.75 ft)"
@@ -53,6 +55,9 @@ function parseDhurFromHandUnit(handUnit?: string, customDhurSqFt?: string): { ft
   if (isNaN(ft) || ft <= 0) return null;
   return { ft, dhur: ft * ft, isStandard: false };
 }
+
+// In-memory cache: persists inputs per shape across component re-mounts during navigation
+const shapeInputsCache: Record<string, InputFields> = {};
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
@@ -76,6 +81,25 @@ export default function HomeScreen() {
     }
   }, [params.shape, params.unit, params.handUnit, params.customDhurSqFt]);
 
+  // Restore last inputs for this shape from in-memory cache
+  useEffect(() => {
+    if (!params.shape || !params.unit) return;
+    const cached = shapeInputsCache[params.shape];
+    if (cached && Object.keys(cached).length > 0) {
+      setInputs(cached);
+    }
+  }, [params.shape]);
+
+  // Handle hardware back button on Android — go back to setup instead of quitting
+  useEffect(() => {
+    const onBackPress = () => {
+      router.back();
+      return true; // prevent default (exiting the app)
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, []);
+
   const handleInputChange = (field: keyof InputFields, value: string) => {
     // Only allow numbers and decimal point
     const cleanValue = value.replace(/[^0-9.]/g, '');
@@ -84,10 +108,13 @@ export default function HomeScreen() {
     const parts = cleanValue.split('.');
     const formattedValue = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleanValue;
 
-    setInputs(prev => ({
-      ...prev,
+    const newInputs = {
+      ...inputs,
       [field]: formattedValue,
-    }));
+    };
+    setInputs(newInputs);
+    // Persist to in-memory cache so it survives component re-mounts during navigation
+    shapeInputsCache[selectedShape] = newInputs;
   };
 
   // Parse dhur from the selected hand unit
@@ -102,11 +129,18 @@ export default function HomeScreen() {
     let dhurSqFt = 0;
     let hasInputs = false;
     let solvedTriangle: { a: number; b: number; c: number; A: number; B: number; C: number } | null = null;
+    let solvedQuad: { a: number; b: number; c: number; d: number; A: number; B: number; C: number; D: number } | null = null;
 
     const toRad = Math.PI / 180;
     const toDeg = 180 / Math.PI;
 
     function solveTriangleParams(a: number, b: number, c: number, A: number, B: number, C: number) {
+      // Variable mapping: a=sA (AB), b=sB (BC), c=sC (AC)
+      // A=angleA (∠A next to AB), B=angleB (∠B next to BC), C=angleC (∠C next to AC)
+      // Geometric vertex labels (from generateTriangle):
+      //   AB (a) & BC (b) meet at B → included angle = ∠B
+      //   BC (b) & AC (c) meet at C → included angle = ∠C
+      //   AB (a) & AC (c) meet at A → included angle = ∠A
       let knownCount = [a, b, c, A, B, C].filter(n => !isNaN(n)).length;
       if (knownCount < 3) return { a, b, c, A, B, C };
 
@@ -115,29 +149,64 @@ export default function HomeScreen() {
         if (!isNaN(A) && !isNaN(C) && isNaN(B)) B = 180 - A - C;
         if (!isNaN(B) && !isNaN(C) && isNaN(A)) A = 180 - B - C;
 
-        if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
-          if (isNaN(A)) A = Math.acos((b * b + c * c - a * a) / (2 * b * c)) * toDeg;
-          if (isNaN(B)) B = Math.acos((a * a + c * c - b * b) / (2 * a * c)) * toDeg;
-          if (isNaN(C)) C = Math.acos((a * a + b * b - c * c) / (2 * a * b)) * toDeg;
-        }
+        // Law of Cosines: a² = b² + c² - 2bc·cos(included angle)
+        // a (AB) from b (BC), c (AC): included angle at C = ∠C
+        if (!isNaN(b) && !isNaN(c) && !isNaN(C) && isNaN(a)) a = Math.sqrt(b * b + c * c - 2 * b * c * Math.cos(C * toRad));
+        // b (BC) from a (AB), c (AC): included angle at A = ∠A
+        if (!isNaN(a) && !isNaN(c) && !isNaN(A) && isNaN(b)) b = Math.sqrt(a * a + c * c - 2 * a * c * Math.cos(A * toRad));
+        // c (AC) from a (AB), b (BC): included angle at B = ∠B
+        if (!isNaN(a) && !isNaN(b) && !isNaN(B) && isNaN(c)) c = Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(B * toRad));
 
-        if (!isNaN(b) && !isNaN(c) && !isNaN(A) && isNaN(a)) a = Math.sqrt(b * b + c * c - 2 * b * c * Math.cos(A * toRad));
-        if (!isNaN(a) && !isNaN(c) && !isNaN(B) && isNaN(b)) b = Math.sqrt(a * a + c * c - 2 * a * c * Math.cos(B * toRad));
-        if (!isNaN(a) && !isNaN(b) && !isNaN(C) && isNaN(c)) c = Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(C * toRad));
-
+        // Law of Sines fallback for missing sides
         let R = NaN;
-        if (!isNaN(a) && !isNaN(A) && A > 0 && A < 180) R = a / Math.sin(A * toRad);
-        else if (!isNaN(b) && !isNaN(B) && B > 0 && B < 180) R = b / Math.sin(B * toRad);
-        else if (!isNaN(c) && !isNaN(C) && C > 0 && C < 180) R = c / Math.sin(C * toRad);
+        if (!isNaN(a) && !isNaN(C) && C > 0 && C < 180) R = a / Math.sin(C * toRad);
+        else if (!isNaN(b) && !isNaN(A) && A > 0 && A < 180) R = b / Math.sin(A * toRad);
+        else if (!isNaN(c) && !isNaN(B) && B > 0 && B < 180) R = c / Math.sin(B * toRad);
 
         if (!isNaN(R)) {
-          if (!isNaN(A) && isNaN(a)) a = R * Math.sin(A * toRad);
-          if (!isNaN(B) && isNaN(b)) b = R * Math.sin(B * toRad);
-          if (!isNaN(C) && isNaN(c)) c = R * Math.sin(C * toRad);
+          if (!isNaN(C) && isNaN(a)) a = R * Math.sin(C * toRad);
+          if (!isNaN(A) && isNaN(b)) b = R * Math.sin(A * toRad);
+          if (!isNaN(B) && isNaN(c)) c = R * Math.sin(B * toRad);
+        }
 
-          if (!isNaN(a) && isNaN(A)) { let s = a / R; if (s <= 1) A = Math.asin(s) * toDeg; }
-          if (!isNaN(b) && isNaN(B)) { let s = b / R; if (s <= 1) B = Math.asin(s) * toDeg; }
-          if (!isNaN(c) && isNaN(C)) { let s = c / R; if (s <= 1) C = Math.asin(s) * toDeg; }
+        // Always recompute ALL angles from Law of Cosines when all 3 sides are known.
+        // angle opposite AB (a) is at vertex C → ∠C
+        // angle opposite BC (b) is at vertex A → ∠A
+        // angle opposite AC (c) is at vertex B → ∠B
+        if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
+          C = Math.acos((b * b + c * c - a * a) / (2 * b * c)) * toDeg;
+          A = Math.acos((a * a + c * c - b * b) / (2 * a * c)) * toDeg;
+          B = Math.acos((a * a + b * b - c * c) / (2 * a * b)) * toDeg;
+        }
+
+        // SSA fallback: solve for a missing side from 2 known sides + non-included angle
+        // c = b·cos(C) ± √(a² - b²·sin²(C)) from Law of Cosines quadratic
+        if (isNaN(c) && !isNaN(a) && !isNaN(b) && !isNaN(C) && a > 0 && b > 0 && C > 0 && C < 180) {
+          const sinC = Math.sin(C * toRad), cosC = Math.cos(C * toRad);
+          const D = a * a - b * b * sinC * sinC;
+          if (D >= 0) {
+            const sqrtD = Math.sqrt(D), term = b * cosC;
+            const roots = [term + sqrtD, term - sqrtD].filter(r => r > 0);
+            if (roots.length > 0) c = roots[0];
+          }
+        }
+        if (isNaN(a) && !isNaN(b) && !isNaN(c) && !isNaN(A) && b > 0 && c > 0 && A > 0 && A < 180) {
+          const sinA = Math.sin(A * toRad), cosA = Math.cos(A * toRad);
+          const D = b * b - c * c * sinA * sinA;
+          if (D >= 0) {
+            const sqrtD = Math.sqrt(D), term = c * cosA;
+            const roots = [term + sqrtD, term - sqrtD].filter(r => r > 0);
+            if (roots.length > 0) a = roots[0];
+          }
+        }
+        if (isNaN(b) && !isNaN(a) && !isNaN(c) && !isNaN(B) && a > 0 && c > 0 && B > 0 && B < 180) {
+          const sinB = Math.sin(B * toRad), cosB = Math.cos(B * toRad);
+          const D = a * a - c * c * sinB * sinB;
+          if (D >= 0) {
+            const sqrtD = Math.sqrt(D), term = c * cosB;
+            const roots = [term + sqrtD, term - sqrtD].filter(r => r > 0);
+            if (roots.length > 0) b = roots[0];
+          }
         }
       }
 
@@ -151,6 +220,7 @@ export default function HomeScreen() {
     }
 
     switch (selectedShape) {
+      case 'scalene-triangle':
       case 'triangle': {
         const parseAsNaN = (val?: string) => val ? parseFloat(val) : NaN;
         const parseSide = (val?: string) => {
@@ -206,6 +276,28 @@ export default function HomeScreen() {
         }
         break;
       }
+      case 'right-angled-triangle': {
+        const parseAsNaN = (val?: string) => val ? parseFloat(val) : NaN;
+        const parseSide = (val?: string) => {
+          if (!val) return NaN;
+          const parts = val.split('.');
+          const feet = parseInt(parts[0], 10);
+          const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+          if (isNaN(feet) && isNaN(inches)) return NaN;
+          let total = 0;
+          if (!isNaN(feet)) total += feet;
+          if (!isNaN(inches)) total += inches / 12;
+          return total;
+        };
+        const ab = unit === 'ft' ? parseSide(inputs.sideA) : parseAsNaN(inputs.sideA);
+        const bc = unit === 'ft' ? parseSide(inputs.sideB) : parseAsNaN(inputs.sideB);
+        hasInputs = !isNaN(ab) && !isNaN(bc);
+        isValid = hasInputs && ab > 0 && bc > 0;
+        if (isValid) {
+          area = 0.5 * ab * bc;
+        }
+        break;
+      }
       // case 'rectangle': {
       //   const l = parseFloatVal(inputs.length);
       //   const w = parseFloatVal(inputs.width);
@@ -231,15 +323,41 @@ export default function HomeScreen() {
       //   area = 0.5 * (a + b) * h;
       //   break;
       // }
-      // case 'quadrilateral': {
-      //   const d = parseFloatVal(inputs.diagonal);
-      //   const h1 = parseFloatVal(inputs.h1);
-      //   const h2 = parseFloatVal(inputs.h2);
-      //   hasInputs = !isNaN(d) && !isNaN(h1) && !isNaN(h2);
-      //   isValid = hasInputs && d > 0 && h1 > 0 && h2 > 0;
-      //   area = 0.5 * d * (h1 + h2);
-      //   break;
-      // }
+      case 'quadrilateral': {
+        const parseAsNaN = (val?: string) => val ? parseFloat(val) : NaN;
+        const parseSide = (val?: string) => {
+          if (!val) return NaN;
+          const parts = val.split('.');
+          const feet = parseInt(parts[0], 10);
+          const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+          if (isNaN(feet) && isNaN(inches)) return NaN;
+          let total = 0;
+          if (!isNaN(feet)) total += feet;
+          if (!isNaN(inches)) total += inches / 12;
+          return total;
+        };
+
+        const s0 = unit === 'ft' ? parseSide(inputs.sideA) : parseAsNaN(inputs.sideA);
+        const s1 = unit === 'ft' ? parseSide(inputs.sideB) : parseAsNaN(inputs.sideB);
+        const s2 = unit === 'ft' ? parseSide(inputs.sideC) : parseAsNaN(inputs.sideC);
+        const s3 = unit === 'ft' ? parseSide(inputs.sideD) : parseAsNaN(inputs.sideD);
+
+        hasInputs = !isNaN(s0) && !isNaN(s1) && !isNaN(s2) && !isNaN(s3);
+
+        if (hasInputs && s0 > 0 && s1 > 0 && s2 > 0 && s3 > 0) {
+          if (validatePolygonSides([s0, s1, s2, s3])) {
+            isValid = true;
+            const points = generatePolygon([s0, s1, s2, s3]);
+            area = calculateArea(points, [s0, s1, s2, s3]);
+            const angles = calculateInteriorAngles(points);
+            solvedQuad = {
+              a: s0, b: s1, c: s2, d: s3,
+              A: angles[0], B: angles[1], C: angles[2], D: angles[3],
+            };
+          }
+        }
+        break;
+      }
     }
 
     // Conversion factors to square meters (m²)
@@ -268,7 +386,7 @@ export default function HomeScreen() {
     // Standard is allowed — it just won't show a dhur conversion
     const finalValid = isValid && (dhurInfo !== null);
 
-    return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle };
+    return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle, solvedQuad };
   }, [selectedShape, inputs, unit, dhurInfo]);
 
   const renderAreaConversions = () => {
@@ -276,7 +394,7 @@ export default function HomeScreen() {
     const { sqFt, dhurSqFt } = calculationResult;
 
     const conversions: { label: string; value: string }[] = [
-      { label: 'Kadi Sq', value: (sqFt * 2.29568).toFixed(2) },
+      { label: 'Kadi Sq', value: (sqFt * 2.29568411386).toFixed(2) },
       { label: 'Cent / Decimal', value: (sqFt / 435.6).toFixed(2) },
       { label: 'Dhur', value: dhurSqFt ? (sqFt / dhurSqFt).toFixed(4) : '—' },
       { label: 'Katha', value: (sqFt / (dhurSqFt * 20)).toFixed(2) },
@@ -285,7 +403,7 @@ export default function HomeScreen() {
       { label: 'Acre', value: (sqFt / 43560).toFixed(4) },
       { label: 'Hectare', value: (sqFt / 107639).toFixed(4) },
       { label: 'Sq Yard / Gaj', value: (sqFt / 9).toFixed(2) },
-      { label: 'Sq Mtr', value: (sqFt / 10.7584).toFixed(2) },
+      { label: 'Sq Mtr', value: (sqFt / 10.7639).toFixed(2) },
     ];
 
     return (
@@ -419,6 +537,329 @@ export default function HomeScreen() {
       );
     }
 
+    if (selectedShape === 'right-angled-triangle') {
+      const ab = unit === 'ft' ? parseSideNum(inputs.sideA) : parseFloat(inputs.sideA || '0') || 0;
+      const bc = unit === 'ft' ? parseSideNum(inputs.sideB) : parseFloat(inputs.sideB || '0') || 0;
+      const ac = ab > 0 && bc > 0 ? Math.sqrt(ab * ab + bc * bc) : 0;
+      const hasBoth = ab > 0 && bc > 0;
+      const angleA = hasBoth ? Math.atan(bc / ab) * (180 / Math.PI) : 0;
+      const angleB = 90;
+      const angleC = hasBoth ? 90 - angleA : 0;
+
+      const unitSuffix = unit === 'kadi' ? 'kadi' : unit;
+
+      type SideField = { key: string; label: string; placeholder: string; readonly: boolean };
+      const sideFields: SideField[] = [];
+
+      if (unit === 'ft') {
+        sideFields.push(
+          { key: 'sideA', label: 'AB', placeholder: (hasBoth && !inputs.sideA) ? formatFtInput(ab) : '0.0', readonly: false },
+          { key: 'sideB', label: 'BC', placeholder: (hasBoth && !inputs.sideB) ? formatFtInput(bc) : '0.0', readonly: false },
+          { key: 'sideC', label: 'AC', placeholder: ac > 0 ? formatFtInput(ac) : '—', readonly: true },
+        );
+      } else {
+        sideFields.push(
+          { key: 'sideA', label: 'AB', placeholder: (hasBoth && !inputs.sideA) ? ab.toFixed(2) : '0', readonly: false },
+          { key: 'sideB', label: 'BC', placeholder: (hasBoth && !inputs.sideB) ? bc.toFixed(2) : '0', readonly: false },
+          { key: 'sideC', label: 'AC', placeholder: ac > 0 ? ac.toFixed(2) : '—', readonly: true },
+        );
+      }
+
+      const hasAngles = hasBoth;
+      const angleLabels = ['A', 'B', 'C'];
+      const angleValues = [angleA, angleB, angleC];
+
+      return (
+        <View style={styles.triangleRows}>
+          {sideFields.map((f, idx) => {
+            const angleVal = angleValues[idx];
+            const displayVal = hasAngles ? `${angleVal.toFixed(1)}°` : '0°';
+            const label = angleLabels[idx];
+
+            return (
+              <View key={f.key} style={styles.triangleRow}>
+                <ThemedText type="small" style={styles.triangleRowLabel}>
+                  {f.label}
+                </ThemedText>
+
+                {f.readonly ? (
+                  <View style={{
+                    flex: 1,
+                    height: 42,
+                    borderWidth: 1.5,
+                    borderRadius: Spacing.two,
+                    paddingHorizontal: Spacing.two,
+                    justifyContent: 'center',
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: '#000000ff',
+                  }}>
+                    <ThemedText type="defaultSemiBold" style={{ color: theme.textSecondary }}>
+                      {f.placeholder}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <View style={{ position: 'relative', flex: 1 }}>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        {
+                          backgroundColor: theme.backgroundElement,
+                          color: theme.text,
+                          borderColor: activeField === f.key ? '#3c87f7' : '#000000ff',
+                          paddingRight: 28,
+                        },
+                      ]}
+                      value={inputs[f.key as keyof InputFields] || ''}
+                      onChangeText={val => handleInputChange(f.key as keyof InputFields, val)}
+                      placeholder={`${f.placeholder} ${unitSuffix}`}
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="decimal-pad"
+                      onFocus={() => setActiveField(f.key)}
+                      onBlur={() => setActiveField(null)}
+                    />
+                  </View>
+                )}
+
+                <ThemedText type="small" style={styles.triangleRowAngleLabel}>
+                  ∠{label}
+                </ThemedText>
+
+                <View style={[
+                  styles.triangleRowAngleBox,
+                  {
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: activeField === `angle${label}` ? '#3c87f7' : '#000000ff',
+                  },
+                ]}>
+                  <ThemedText
+                    type="defaultSemiBold"
+                    style={[styles.angleValue, { color: hasAngles ? '#3c87f7' : theme.textSecondary }]}
+                  >
+                    {displayVal}
+                  </ThemedText>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+
+    if (selectedShape === 'scalene-triangle') {
+      const s = calculationResult.solvedTriangle;
+      const hasSides = s && !isNaN(s.a) && !isNaN(s.b) && !isNaN(s.c) && s.a > 0 && s.b > 0 && s.c > 0;
+      const hasAngles = s && !isNaN(s.A) && !isNaN(s.B) && !isNaN(s.C) && s.A > 0 && s.B > 0 && s.C > 0;
+
+      const unitSuffix = unit === 'kadi' ? 'kadi' : unit;
+
+      // Side names for scalene: AB, BC, AC
+      type RowField = { sideKey: keyof InputFields; angleKey: keyof InputFields; sideLabel: string; angleLabel: string };
+      const rows: RowField[] = [
+        { sideKey: 'sideA', angleKey: 'angleA', sideLabel: 'AB', angleLabel: 'A' },
+        { sideKey: 'sideB', angleKey: 'angleB', sideLabel: 'BC', angleLabel: 'B' },
+        { sideKey: 'sideC', angleKey: 'angleC', sideLabel: 'AC', angleLabel: 'C' },
+      ];
+
+      return (
+        <View style={styles.triangleRows}>
+          {rows.map((row) => {
+            const sideValue = inputs[row.sideKey];
+            const angleValue = inputs[row.angleKey];
+            const hasSide = !!sideValue && !isNaN(parseFloat(sideValue));
+            const hasAngle = !!angleValue && !isNaN(parseFloat(angleValue));
+
+            const sideDisabled = hasAngle && !hasSide;
+            const angleDisabled = hasSide && !hasAngle;
+
+            // Computed display values from the solver
+            const sideNum = row.sideKey === 'sideA' ? s?.a : row.sideKey === 'sideB' ? s?.b : s?.c;
+            const angleNum = row.angleKey === 'angleA' ? s?.A : row.angleKey === 'angleB' ? s?.B : s?.C;
+            const hasComputed = hasSides || hasAngles;
+
+            const sidePlaceholder = sideDisabled && hasComputed && !isNaN(sideNum!) && sideNum! > 0
+              ? (unit === 'ft' ? formatFtInput(sideNum!) : sideNum!.toFixed(2))
+              : '0';
+            const sideDisplay = sideDisabled && hasComputed && !isNaN(sideNum!) && sideNum! > 0
+              ? (unit === 'ft' ? formatFtInput(sideNum!) : sideNum!.toFixed(2))
+              : '—';
+            const angleDisplay = angleDisabled && hasComputed && !isNaN(angleNum!) && angleNum! > 0
+              ? `${angleNum!.toFixed(1)}°`
+              : '—';
+
+            return (
+              <View key={row.sideKey} style={styles.triangleRow}>
+                {/* Side label */}
+                <ThemedText type="small" style={styles.triangleRowLabel}>
+                  {row.sideLabel}
+                </ThemedText>
+
+                {/* Side input/display */}
+                {sideDisabled ? (
+                  <View style={{
+                    flex: 1,
+                    height: 42,
+                    borderWidth: 1.5,
+                    borderRadius: Spacing.two,
+                    paddingHorizontal: Spacing.two,
+                    justifyContent: 'center',
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: '#000000ff',
+                  }}>
+                    <ThemedText type="defaultSemiBold" style={{ color: theme.textSecondary }}>
+                      {sideDisplay}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <View style={{ position: 'relative', flex: 1 }}>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        {
+                          backgroundColor: theme.backgroundElement,
+                          color: theme.text,
+                          borderColor: activeField === row.sideKey ? '#3c87f7' : '#000000ff',
+                          paddingRight: 28,
+                        },
+                      ]}
+                      value={sideValue || ''}
+                      onChangeText={val => handleInputChange(row.sideKey, val)}
+                      placeholder={`${sidePlaceholder} ${unitSuffix}`}
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="decimal-pad"
+                      onFocus={() => setActiveField(row.sideKey)}
+                      onBlur={() => setActiveField(null)}
+                    />
+                  </View>
+                )}
+
+                {/* Angle label */}
+                <ThemedText type="small" style={styles.triangleRowAngleLabel}>
+                  ∠{row.angleLabel}
+                </ThemedText>
+
+                {/* Angle input/display */}
+                {angleDisabled ? (
+                  <View style={[
+                    styles.triangleRowAngleBox,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      borderColor: '#000000ff',
+                    },
+                  ]}>
+                    <ThemedText
+                      type="defaultSemiBold"
+                      style={[styles.angleValue, { color: '#3c87f7' }]}
+                    >
+                      {angleDisplay}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <View style={{
+                    width: 72,
+                    height: 42,
+                    borderWidth: 1.5,
+                    borderRadius: Spacing.two,
+                    borderColor: activeField === row.angleKey ? '#3c87f7' : '#000000ff',
+                    justifyContent: 'center',
+                    backgroundColor: theme.backgroundElement,
+                  }}>
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        color: theme.text,
+                        fontSize: 16,
+                        fontWeight: '700',
+                        textAlign: 'center',
+                        padding: 0,
+                      }}
+                      value={angleValue || ''}
+                      onChangeText={val => handleInputChange(row.angleKey, val.replace(/[^0-9.]/g, ''))}
+                      placeholder="0"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="decimal-pad"
+                      onFocus={() => setActiveField(row.angleKey)}
+                      onBlur={() => setActiveField(null)}
+                    />
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+
+    if (selectedShape === 'quadrilateral') {
+      const q = calculationResult.solvedQuad;
+      const hasComputed = q && !isNaN(q.A) && !isNaN(q.B) && !isNaN(q.C) && !isNaN(q.D) && q.A > 0 && q.B > 0 && q.C > 0 && q.D > 0;
+
+      const unitSuffix = unit === 'kadi' ? 'kadi' : unit;
+
+      // 4 rows: AB, BC, CD, DA — each with side input and computed angle display
+      const rows: { sideKey: keyof InputFields; sideLabel: string; angleLabel: string }[] = [
+        { sideKey: 'sideA', sideLabel: 'AB', angleLabel: 'A' },
+        { sideKey: 'sideB', sideLabel: 'BC', angleLabel: 'B' },
+        { sideKey: 'sideC', sideLabel: 'CD', angleLabel: 'C' },
+        { sideKey: 'sideD', sideLabel: 'DA', angleLabel: 'D' },
+      ];
+
+      return (
+        <View style={styles.triangleRows}>
+          {rows.map((row) => {
+            const angleVal = row.angleLabel === 'A' ? q?.A : row.angleLabel === 'B' ? q?.B : row.angleLabel === 'C' ? q?.C : q?.D;
+            const displayAngle = hasComputed ? `${angleVal!.toFixed(1)}°` : '0°';
+
+            return (
+              <View key={row.sideKey} style={styles.triangleRow}>
+                <ThemedText type="small" style={styles.triangleRowLabel}>
+                  {row.sideLabel}
+                </ThemedText>
+                <View style={{ position: 'relative', flex: 1 }}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.backgroundElement,
+                        color: theme.text,
+                        borderColor: activeField === row.sideKey ? '#3c87f7' : '#000000ff',
+                        paddingRight: 28,
+                      },
+                    ]}
+                    value={inputs[row.sideKey] || ''}
+                    onChangeText={val => handleInputChange(row.sideKey, val)}
+                    placeholder={`0 ${unitSuffix}`}
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="decimal-pad"
+                    onFocus={() => setActiveField(row.sideKey)}
+                    onBlur={() => setActiveField(null)}
+                  />
+                </View>
+                <ThemedText type="small" style={styles.triangleRowAngleLabel}>
+                  ∠{row.angleLabel}
+                </ThemedText>
+                <View
+                  style={[
+                    styles.triangleRowAngleBox,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      borderColor: activeField === `angle${row.angleLabel}` ? '#3c87f7' : '#000000ff',
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    type="defaultSemiBold"
+                    style={[styles.angleValue, { color: hasComputed ? '#3c87f7' : theme.textSecondary }]}
+                  >
+                    {displayAngle}
+                  </ThemedText>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+
     const fields: { key: keyof InputFields; label: string; placeholder: string }[] = [];
 
     if (selectedShape === 'rectangle') {
@@ -520,13 +961,23 @@ export default function HomeScreen() {
     let aNum = 0;
     let bNum = 0;
     let cNum = 0;
+    let dNum = 0;
 
-    if (calculationResult.solvedTriangle && calculationResult.isValid) {
+    if (selectedShape === 'right-angled-triangle') {
+      aNum = unit === 'ft' ? parseSideNum(inputs.sideA) : (parseFloat(inputs.sideA || '0') || 0);
+      bNum = unit === 'ft' ? parseSideNum(inputs.sideB) : (parseFloat(inputs.sideB || '0') || 0);
+      cNum = aNum > 0 && bNum > 0 ? Math.sqrt(aNum * aNum + bNum * bNum) : 0;
+    } else if (selectedShape === 'quadrilateral') {
+      aNum = parseFloat(inputs.sideA || '0') || 0;
+      bNum = parseFloat(inputs.sideB || '0') || 0;
+      cNum = parseFloat(inputs.sideC || '0') || 0;
+      dNum = parseFloat(inputs.sideD || '0') || 0;
+    } else if (calculationResult.solvedTriangle && calculationResult.isValid) {
       aNum = calculationResult.solvedTriangle.a;
       bNum = calculationResult.solvedTriangle.b;
       cNum = calculationResult.solvedTriangle.c;
     } else {
-      if (selectedShape === 'triangle' && unit === 'ft') {
+      if ((selectedShape === 'triangle' || selectedShape === 'scalene-triangle') && unit === 'ft') {
         aNum = parseSideNum(inputs.sideA);
         bNum = parseSideNum(inputs.sideB);
         cNum = parseSideNum(inputs.sideC);
@@ -537,13 +988,29 @@ export default function HomeScreen() {
       }
     }
 
-    const s = [aNum.toString(), bNum.toString(), cNum.toString()];
+    const s = selectedShape === 'quadrilateral'
+      ? [aNum.toString(), bNum.toString(), cNum.toString(), dNum.toString()]
+      : [aNum.toString(), bNum.toString(), cNum.toString()];
+
     let sideLabels: string[] | undefined;
-    if (selectedShape === 'triangle' && unit === 'ft') {
+    if (selectedShape === 'quadrilateral' && unit === 'ft') {
       sideLabels = [
         formatLabel(aNum, inputs.sideA),
         formatLabel(bNum, inputs.sideB),
         formatLabel(cNum, inputs.sideC),
+        formatLabel(dNum, inputs.sideD),
+      ];
+    } else if ((selectedShape === 'triangle' || selectedShape === 'scalene-triangle') && unit === 'ft') {
+      sideLabels = [
+        formatLabel(aNum, inputs.sideA),
+        formatLabel(bNum, inputs.sideB),
+        formatLabel(cNum, inputs.sideC),
+      ];
+    } else if (selectedShape === 'right-angled-triangle' && unit === 'ft') {
+      sideLabels = [
+        formatLabel(aNum, inputs.sideA),
+        formatLabel(bNum, inputs.sideB),
+        formatLabel(cNum, undefined),
       ];
     }
 
@@ -555,9 +1022,9 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         {/* Top bar — shape . unit */}
         <View style={[styles.compactHeader, { backgroundColor: theme.backgroundElement, borderBottomColor: theme.backgroundSelected }]}>
-          <Pressable onPress={() => router.replace('/setup')} style={styles.compactHeaderInner}>
+          <Pressable onPress={() => router.back()} style={styles.compactHeaderInner}>
             <ThemedText type="default" style={[styles.compactHeaderText, { color: '#3c87f7' }]}>
-              {selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
+              {selectedShape === 'right-angled-triangle' ? 'Right-angled Triangle' : selectedShape === 'scalene-triangle' ? 'Scalene Triangle' : selectedShape === 'quadrilateral' ? 'Quadrilateral' : selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
             </ThemedText>
             <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.textSecondary, marginHorizontal: 6 }]}>
               ·

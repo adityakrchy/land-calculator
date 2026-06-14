@@ -1,6 +1,6 @@
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { calculateInteriorAngles, generateTriangle } from '@/utils/geometry';
+import { calculateInteriorAngles, generatePolygon, generateTriangle } from '@/utils/geometry';
 import { Text as RNText, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -8,7 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 import { ThemedText } from './themed-text';
 
 interface ShapeDiagramProps {
-  shape: 'triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
+  shape: 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
   activeField: string | null;
   sides: string[];
   sideLabels?: string[];
@@ -84,6 +84,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
 
   const renderShape = () => {
     switch (shape) {
+      case 'scalene-triangle':
       case 'triangle': {
         const sideAHighlight = getHighlightStyle(['sideA']);
         const sideBHighlight = getHighlightStyle(['sideB']);
@@ -313,6 +314,230 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
         );
       }
 
+      case 'right-angled-triangle': {
+        const sideAHighlight = getHighlightStyle(['sideA']);
+        const sideBHighlight = getHighlightStyle(['sideB']);
+        const sideCHighlight = getHighlightStyle(['sideC']);
+
+        // Parse side lengths
+        let s0 = parseFloat(sides[0]); // Side A value
+        let s1 = parseFloat(sides[1]); // Side B value
+        let s2 = parseFloat(sides[2]); // Side C value
+
+        const isValidTriangle =
+          !isNaN(s0) && !isNaN(s1) && !isNaN(s2) &&
+          s0 > 0 && s1 > 0 && s2 > 0 &&
+          s0 + s1 > s2 && s0 + s2 > s1 && s1 + s2 > s0;
+
+        if (!isValidTriangle) {
+          // Classic 3-4-5 right triangle skeleton (a² + b² = c²)
+          s0 = 3; s1 = 4; s2 = 5;
+        }
+
+        // Use the same triangle generation logic as plot.tsx (geometry.ts)
+        const modelPoints = generateTriangle(s0, s1, s2);
+
+        // Compute interior angles
+        const angles = isValidTriangle ? calculateInteriorAngles(modelPoints) : [60, 60, 60];
+        const angleA = angles[0];
+        const angleB = angles[1];
+        const angleC = angles[2];
+
+        // Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+        const rotPoints = modelPoints.map(p => ({ x: p.y, y: -p.x }));
+        const r1 = rotPoints[0]; // A
+        const r2 = rotPoints[1]; // B
+        const r3 = rotPoints[2]; // C
+
+        // Bounding box
+        const minX = Math.min(r1.x, r2.x, r3.x);
+        const maxX = Math.max(r1.x, r2.x, r3.x);
+        const minY = Math.min(r1.y, r2.y, r3.y);
+        const maxY = Math.max(r1.y, r2.y, r3.y);
+
+        const w = maxX - minX;
+        const h = maxY - minY;
+
+        // Scaling to fit canvas (300x180 max, using 240x120 to leave padding)
+        const maxWidth = 240;
+        const maxHeight = 120;
+        const scale = w > 0 && h > 0 ? Math.min(maxWidth / w, maxHeight / h) : 1;
+
+        const scaledW = w * scale;
+        const scaledH = h * scale;
+
+        // Center offsets (Canvas size: 300x180)
+        const offsetX = (300 - scaledW) / 2;
+        const offsetY = (180 - scaledH) / 2;
+
+        // Scale and shift coordinates (invert Y axis for React Native)
+        const transformPoint = (p: { x: number, y: number }) => ({
+          x: (p.x - minX) * scale + offsetX,
+          y: 180 - ((p.y - minY) * scale + offsetY)
+        });
+
+        // Screen coordinates of vertices
+        const vA = transformPoint(r1);
+        const vB = transformPoint(r2);
+        const vC = transformPoint(r3);
+
+        const centroidX = (vA.x + vB.x + vC.x) / 3;
+        const centroidY = (vA.y + vB.y + vC.y) / 3;
+
+        const renderDynamicLine = (start: { x: number, y: number }, end: { x: number, y: number }, styleHighlight: any, label: string) => {
+          const length = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+          const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+          const midX = (start.x + end.x) / 2;
+          const midY = (start.y + end.y) / 2;
+
+          return (
+            <View key={label} style={[
+              styles.line,
+              {
+                left: midX - length / 2,
+                top: midY - 1,
+                width: length,
+                height: 2,
+                backgroundColor: styleHighlight.borderColor,
+                transform: [{ rotate: `${angle}deg` }]
+              }
+            ]} />
+          );
+        };
+
+        // Helper to push text outward from centroid (in screen space)
+        const getLabelPos = (p: { x: number, y: number }, distanceAway: number) => {
+          const vx = p.x - centroidX;
+          const vy = p.y - centroidY;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * distanceAway, y: p.y + (vy / len) * distanceAway };
+        };
+
+        // Helper to push text inward from vertex (in screen space)
+        const getInteriorPos = (p: { x: number, y: number }, distanceInside: number) => {
+          const vx = centroidX - p.x;
+          const vy = centroidY - p.y;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * distanceInside, y: p.y + (vy / len) * distanceInside };
+        };
+
+        const renderArc = (v: { x: number, y: number }, adj1: { x: number, y: number }, adj2: { x: number, y: number }, R: number, color: string) => {
+          const u = { x: adj1.x - v.x, y: adj1.y - v.y };
+          const w = { x: adj2.x - v.x, y: adj2.y - v.y };
+          const lenU = Math.sqrt(u.x * u.x + u.y * u.y) || 1;
+          const lenW = Math.sqrt(w.x * w.x + w.y * w.y) || 1;
+          const nu = { x: u.x / lenU, y: u.y / lenU };
+          const nw = { x: w.x / lenW, y: w.y / lenW };
+          const A = { x: v.x + nu.x * R, y: v.y + nu.y * R };
+          const B = { x: v.x + nw.x * R, y: v.y + nw.y * R };
+          const cross = nu.x * nw.y - nu.y * nw.x;
+          const sweep = cross > 0 ? 1 : 0;
+          return <Path d={`M ${A.x} ${A.y} A ${R} ${R} 0 0 ${sweep} ${B.x} ${B.y}`} fill="none" stroke={color} strokeWidth="1.5" />;
+        };
+
+        // Edge midpoints (screen coordinates)
+        const midAB = { x: (vA.x + vB.x) / 2, y: (vA.y + vB.y) / 2 };
+        const midBC = { x: (vB.x + vC.x) / 2, y: (vB.y + vC.y) / 2 };
+        const midCA = { x: (vC.x + vA.x) / 2, y: (vC.y + vA.y) / 2 };
+
+        // Side label positions
+        const labelAB_pos = getLabelPos(midAB, 22);
+        const labelBC_pos = getLabelPos(midBC, 22);
+        const labelCA_pos = getLabelPos(midCA, 22);
+
+        // Angle labels pulled inward from each vertex
+        const angleA_pos = getInteriorPos(vA, 22);
+        const angleB_pos = getInteriorPos(vB, 22);
+        const angleC_pos = getInteriorPos(vC, 22);
+
+        // Vertex label positions (pushed outward from centroid)
+        const vertexA_pos = getLabelPos(vA, 18);
+        const vertexB_pos = getLabelPos(vB, 18);
+        const vertexC_pos = getLabelPos(vC, 18);
+
+        // Active state booleans for each side
+        const isSideAActive = activeField === 'sideA';
+        const isSideBActive = activeField === 'sideB';
+        const isSideCActive = activeField === 'sideC';
+
+        // Side label text: each edge shows its actual length
+        const labelABText = isValidTriangle ? (sideLabels?.[0] ?? `${s0}`) : 'a';
+        const labelBCText = isValidTriangle ? (sideLabels?.[1] ?? `${s1}`) : 'b';
+        const labelCAText = isValidTriangle ? (sideLabels?.[2] ?? `${s2}`) : 'c';
+
+        return (
+          <View style={styles.canvas}>
+            {/* Vertex dots */}
+            <View style={[styles.apexDot, { left: vA.x - 3, top: vA.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vB.x - 3, top: vB.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vC.x - 3, top: vC.y - 3, backgroundColor: theme.textSecondary }]} />
+
+            {/* SVG Arcs for Angles */}
+            {isValidTriangle && (
+              <Svg style={StyleSheet.absoluteFill}>
+                {renderArc(vA, vB, vC, 16, theme.textSecondary)}
+                {renderArc(vB, vA, vC, 16, theme.textSecondary)}
+                {renderArc(vC, vA, vB, 16, theme.textSecondary)}
+              </Svg>
+            )}
+
+            {/* Dynamic Lines representing sides */}
+            {renderDynamicLine(vA, vB, sideAHighlight, 'sideA')}
+            {renderDynamicLine(vB, vC, sideBHighlight, 'sideB')}
+            {renderDynamicLine(vA, vC, sideCHighlight, 'sideC')}
+
+            {/* Labels for sides */}
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+                {labelABText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+                {labelBCText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+                {labelCAText}
+              </RNText>
+            </View>
+
+            {/* Vertex labels */}
+            <View style={[styles.vertexLabelBox, { left: vertexA_pos.x - 12, top: vertexA_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>A</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexB_pos.x - 12, top: vertexB_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>B</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexC_pos.x - 12, top: vertexC_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>C</RNText>
+            </View>
+
+            {/* Labels for angles */}
+            {isValidTriangle && (
+              <>
+                <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠A {angleA.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠B {angleB.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠C {angleC.toFixed(1)}°
+                  </RNText>
+                </View>
+              </>
+            )}
+          </View>
+        );
+      }
+
       case 'rectangle': {
         const lengthHighlight = getHighlightStyle(['length']);
         const widthHighlight = getHighlightStyle(['width']);
@@ -421,70 +646,252 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
       }
 
       case 'quadrilateral': {
-        const dHighlight = getHighlightStyle(['diagonal']);
-        const h1Highlight = getHighlightStyle(['h1']);
-        const h2Highlight = getHighlightStyle(['h2']);
+        const sideAHighlight = getHighlightStyle(['sideA']);
+        const sideBHighlight = getHighlightStyle(['sideB']);
+        const sideCHighlight = getHighlightStyle(['sideC']);
+        const sideDHighlight = getHighlightStyle(['sideD']);
+
+        // Parse side lengths — AB, BC, CD, DA
+        let s0 = parseFloat(sides[0]); // AB
+        let s1 = parseFloat(sides[1]); // BC
+        let s2 = parseFloat(sides[2]); // CD
+        let s3 = parseFloat(sides[3]); // DA
+
+        const isValidQuad =
+          !isNaN(s0) && !isNaN(s1) && !isNaN(s2) && !isNaN(s3) &&
+          s0 > 0 && s1 > 0 && s2 > 0 && s3 > 0;
+
+        if (!isValidQuad) {
+          // Default rectangle shape
+          s0 = 3; s1 = 5; s2 = 3; s3 = 5;
+        }
+
+        // Use generatePolygon to get vertex positions for the 4 sides
+        const modelPoints = generatePolygon([s0, s1, s2, s3]);
+        // modelPoints[0] = A, [1] = B, [2] = C, [3] = D
+
+        // Compute interior angles
+        const angles = isValidQuad ? calculateInteriorAngles(modelPoints) : [90, 90, 90, 90];
+        const angleA = angles[0]; // ∠A at vertex A
+        const angleB = angles[1]; // ∠B at vertex B
+        const angleC = angles[2]; // ∠C at vertex C
+        const angleD = angles[3]; // ∠D at vertex D
+
+        // Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+        const rotPoints = modelPoints.map(p => ({ x: p.y, y: -p.x }));
+        const rA = rotPoints[0]; // A
+        const rB = rotPoints[1]; // B
+        const rC = rotPoints[2]; // C
+        const rD = rotPoints[3]; // D
+
+        // Bounding box
+        const minX = Math.min(rA.x, rB.x, rC.x, rD.x);
+        const maxX = Math.max(rA.x, rB.x, rC.x, rD.x);
+        const minY = Math.min(rA.y, rB.y, rC.y, rD.y);
+        const maxY = Math.max(rA.y, rB.y, rC.y, rD.y);
+
+        const w = maxX - minX;
+        const h = maxY - minY;
+
+        // Scaling to fit canvas (300x180 max, using 220x100 to leave padding for labels)
+        const maxWidth = 220;
+        const maxHeight = 100;
+        const scale = w > 0 && h > 0 ? Math.min(maxWidth / w, maxHeight / h) : 1;
+
+        const scaledW = w * scale;
+        const scaledH = h * scale;
+
+        // Center offsets (Canvas size: 300x180)
+        const offsetX = (300 - scaledW) / 2;
+        const offsetY = (180 - scaledH) / 2;
+
+        // Scale and shift coordinates (invert Y axis for React Native)
+        const transformPoint = (p: { x: number, y: number }) => ({
+          x: (p.x - minX) * scale + offsetX,
+          y: 180 - ((p.y - minY) * scale + offsetY)
+        });
+
+        // Screen coordinates of vertices
+        const vA = transformPoint(rA);
+        const vB = transformPoint(rB);
+        const vC = transformPoint(rC);
+        const vD = transformPoint(rD);
+
+        const centroidX = (vA.x + vB.x + vC.x + vD.x) / 4;
+        const centroidY = (vA.y + vB.y + vC.y + vD.y) / 4;
+
+        const renderDynamicLine = (start: { x: number, y: number }, end: { x: number, y: number }, styleHighlight: any, label: string) => {
+          const length = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+          const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+          const midX = (start.x + end.x) / 2;
+          const midY = (start.y + end.y) / 2;
+
+          return (
+            <View key={label} style={[
+              styles.line,
+              {
+                left: midX - length / 2,
+                top: midY - 1,
+                width: length,
+                height: 2,
+                backgroundColor: styleHighlight.borderColor,
+                transform: [{ rotate: `${angle}deg` }]
+              }
+            ]} />
+          );
+        };
+
+        // Helper to push text outward from centroid (in screen space)
+        const getLabelPos = (p: { x: number, y: number }, distanceAway: number) => {
+          const vx = p.x - centroidX;
+          const vy = p.y - centroidY;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * distanceAway, y: p.y + (vy / len) * distanceAway };
+        };
+
+        // Helper to push text inward from vertex (in screen space)
+        const getInteriorPos = (p: { x: number, y: number }, distanceInside: number) => {
+          const vx = centroidX - p.x;
+          const vy = centroidY - p.y;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * distanceInside, y: p.y + (vy / len) * distanceInside };
+        };
+
+        const renderArc = (v: { x: number, y: number }, adj1: { x: number, y: number }, adj2: { x: number, y: number }, R: number, color: string) => {
+          const u = { x: adj1.x - v.x, y: adj1.y - v.y };
+          const w = { x: adj2.x - v.x, y: adj2.y - v.y };
+          const lenU = Math.sqrt(u.x * u.x + u.y * u.y) || 1;
+          const lenW = Math.sqrt(w.x * w.x + w.y * w.y) || 1;
+          const nu = { x: u.x / lenU, y: u.y / lenU };
+          const nw = { x: w.x / lenW, y: w.y / lenW };
+          const A = { x: v.x + nu.x * R, y: v.y + nu.y * R };
+          const B = { x: v.x + nw.x * R, y: v.y + nw.y * R };
+          const cross = nu.x * nw.y - nu.y * nw.x;
+          const sweep = cross > 0 ? 1 : 0;
+          return <Path d={`M ${A.x} ${A.y} A ${R} ${R} 0 0 ${sweep} ${B.x} ${B.y}`} fill="none" stroke={color} strokeWidth="1.5" />;
+        };
+
+        // Edge midpoints
+        const midAB = { x: (vA.x + vB.x) / 2, y: (vA.y + vB.y) / 2 }; // AB
+        const midBC = { x: (vB.x + vC.x) / 2, y: (vB.y + vC.y) / 2 }; // BC
+        const midCD = { x: (vC.x + vD.x) / 2, y: (vC.y + vD.y) / 2 }; // CD
+        const midDA = { x: (vD.x + vA.x) / 2, y: (vD.y + vA.y) / 2 }; // DA
+
+        // Side label positions
+        const labelAB_pos = getLabelPos(midAB, 22);
+        const labelBC_pos = getLabelPos(midBC, 22);
+        const labelCD_pos = getLabelPos(midCD, 22);
+        const labelDA_pos = getLabelPos(midDA, 22);
+
+        // Angle labels pulled inward from each vertex
+        const angleA_pos = getInteriorPos(vA, 22);
+        const angleB_pos = getInteriorPos(vB, 22);
+        const angleC_pos = getInteriorPos(vC, 22);
+        const angleD_pos = getInteriorPos(vD, 22);
+
+        // Vertex label positions (pushed outward from centroid)
+        const vertexA_pos = getLabelPos(vA, 18);
+        const vertexB_pos = getLabelPos(vB, 18);
+        const vertexC_pos = getLabelPos(vC, 18);
+        const vertexD_pos = getLabelPos(vD, 18);
+
+        // Active state booleans for each side
+        const isSideAActive = activeField === 'sideA'; // AB
+        const isSideBActive = activeField === 'sideB'; // BC
+        const isSideCActive = activeField === 'sideC'; // CD
+        const isSideDActive = activeField === 'sideD'; // DA
+
+        // Side label text
+        const labelABText = isValidQuad ? (sideLabels?.[0] ?? `${s0}`) : 'a';
+        const labelBCText = isValidQuad ? (sideLabels?.[1] ?? `${s1}`) : 'b';
+        const labelCDText = isValidQuad ? (sideLabels?.[2] ?? `${s2}`) : 'c';
+        const labelDAText = isValidQuad ? (sideLabels?.[3] ?? `${s3}`) : 'd';
+
         return (
           <View style={styles.canvas}>
-            {/* Outer Boundary of quadrilateral */}
-            {/* Side 1: Top-Left to Top-Right */}
-            <View style={[styles.line, { top: 50, left: 50, width: 105, height: 2, transform: [{ rotate: '-12deg' }, { translateX: 50 }], backgroundColor: theme.textSecondary }]} />
-            {/* Side 2: Top-Right to Bottom-Right */}
-            <View style={[styles.line, { top: 40, right: 40, width: 85, height: 2, transform: [{ rotate: '70deg' }, { translateY: 40 }], backgroundColor: theme.textSecondary }]} />
-            {/* Side 3: Bottom-Right to Bottom-Left */}
-            <View style={[styles.line, { bottom: 40, left: 40, width: 145, height: 2, transform: [{ rotate: '5deg' }, { translateX: 70 }], backgroundColor: theme.textSecondary }]} />
-            {/* Side 4: Bottom-Left to Top-Left */}
-            <View style={[styles.line, { top: 50, left: 50, width: 75, height: 2, transform: [{ rotate: '100deg' }, { translateY: 35 }], backgroundColor: theme.textSecondary }]} />
+            {/* Vertex dots */}
+            <View style={[styles.apexDot, { left: vA.x - 3, top: vA.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vB.x - 3, top: vB.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vC.x - 3, top: vC.y - 3, backgroundColor: theme.textSecondary }]} />
+            <View style={[styles.apexDot, { left: vD.x - 3, top: vD.y - 3, backgroundColor: theme.textSecondary }]} />
 
-            {/* Diagonal line (dashed) */}
-            <View style={[styles.line, {
-              top: 50,
-              left: 50,
-              width: 160,
-              height: 2,
-              borderStyle: 'dashed',
-              borderWidth: 1,
-              transform: [{ rotate: '25deg' }, { translateX: 75 }],
-              borderColor: dHighlight.borderColor,
-              backgroundColor: 'transparent'
-            }]} />
+            {/* SVG Arcs for Angles */}
+            {isValidQuad && (
+              <Svg style={StyleSheet.absoluteFill}>
+                {renderArc(vA, vB, vD, 14, theme.textSecondary)}
+                {renderArc(vB, vA, vC, 14, theme.textSecondary)}
+                {renderArc(vC, vB, vD, 14, theme.textSecondary)}
+                {renderArc(vD, vA, vC, 14, theme.textSecondary)}
+              </Svg>
+            )}
 
-            {/* Perpendicular h1 (top-left apex to diagonal) */}
-            <View style={[styles.line, {
-              top: 40,
-              left: 50,
-              width: 48,
-              height: 2,
-              borderStyle: 'dashed',
-              borderWidth: 1,
-              transform: [{ rotate: '-65deg' }, { translateX: 22 }, { translateY: 10 }],
-              borderColor: h1Highlight.borderColor,
-              backgroundColor: 'transparent'
-            }]} />
+            {/* Dynamic Lines representing sides */}
+            {renderDynamicLine(vA, vB, sideAHighlight, 'sideA')}
+            {renderDynamicLine(vB, vC, sideBHighlight, 'sideB')}
+            {renderDynamicLine(vC, vD, sideCHighlight, 'sideC')}
+            {renderDynamicLine(vD, vA, sideDHighlight, 'sideD')}
 
-            {/* Perpendicular h2 (bottom-right apex to diagonal) */}
-            <View style={[styles.line, {
-              bottom: 40,
-              right: 40,
-              width: 45,
-              height: 2,
-              borderStyle: 'dashed',
-              borderWidth: 1,
-              transform: [{ rotate: '-65deg' }, { translateX: -20 }, { translateY: -10 }],
-              borderColor: h2Highlight.borderColor,
-              backgroundColor: 'transparent'
-            }]} />
+            {/* Labels for sides */}
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+                {labelABText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+                {labelBCText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelCD_pos.x - 25, top: labelCD_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+                {labelCDText}
+              </RNText>
+            </View>
+            <View style={[styles.labelBox, { left: labelDA_pos.x - 25, top: labelDA_pos.y - 10, width: 50, backgroundColor: isSideDActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideDActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideDActive ? '#ffffff' : theme.text }]}>
+                {labelDAText}
+              </RNText>
+            </View>
 
-            {/* Labels */}
-            <ThemedText style={[styles.label, { top: 78, left: '55%', color: dHighlight.color, fontWeight: dHighlight.fontWeight as any, fontSize: 11 }]}>
-              diagonal (d)
-            </ThemedText>
-            <ThemedText style={[styles.label, { top: 38, left: '26%', color: h1Highlight.color, fontWeight: h1Highlight.fontWeight as any, fontSize: 11 }]}>
-              h1
-            </ThemedText>
-            <ThemedText style={[styles.label, { bottom: 35, right: '28%', color: h2Highlight.color, fontWeight: h2Highlight.fontWeight as any, fontSize: 11 }]}>
-              h2
-            </ThemedText>
+            {/* Vertex labels */}
+            <View style={[styles.vertexLabelBox, { left: vertexA_pos.x - 12, top: vertexA_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>A</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexB_pos.x - 12, top: vertexB_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>B</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexC_pos.x - 12, top: vertexC_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>C</RNText>
+            </View>
+            <View style={[styles.vertexLabelBox, { left: vertexD_pos.x - 12, top: vertexD_pos.y - 10 }]} pointerEvents="none">
+              <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>D</RNText>
+            </View>
+
+            {/* Labels for angles */}
+            {isValidQuad && (
+              <>
+                <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠A {angleA.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠B {angleB.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠C {angleC.toFixed(1)}°
+                  </RNText>
+                </View>
+                <View style={[styles.angleLabelBox, { left: angleD_pos.x - 30, top: angleD_pos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isSideDActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠D {angleD.toFixed(1)}°
+                  </RNText>
+                </View>
+              </>
+            )}
           </View>
         );
       }

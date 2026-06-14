@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -46,10 +47,30 @@ const SHAPES: ShapeOption[] = [
     ),
   },
   {
-    type: 'rectangle',
-    label: 'Rectangle',
+    type: 'right-angled-triangle',
+    label: 'Right-angled Triangle',
     icon: (color) => (
-      <View style={{ width: 36, height: 24, borderWidth: 2, borderColor: color, borderRadius: 2 }} />
+      <Svg width="36" height="28" viewBox="0 0 36 28">
+        <Path d="M 4 24 L 32 24 L 4 4 Z" stroke={color} strokeWidth="2" fill="none" strokeLinejoin="round" />
+      </Svg>
+    ),
+  },
+  {
+    type: 'scalene-triangle',
+    label: 'Scalene Triangle',
+    icon: (color) => (
+      <Svg width="36" height="28" viewBox="0 0 36 28">
+        <Path d="M 2 24 L 34 22 L 18 4 Z" stroke={color} strokeWidth="2" fill="none" strokeLinejoin="round" />
+      </Svg>
+    ),
+  },
+  {
+    type: 'quadrilateral',
+    label: 'Quadrilateral',
+    icon: (color) => (
+      <Svg width="36" height="28" viewBox="0 0 36 28">
+        <Path d="M 6 22 L 30 20 L 26 6 L 8 8 Z" stroke={color} strokeWidth="2" fill="none" strokeLinejoin="round" />
+      </Svg>
     ),
   },
   {
@@ -103,7 +124,7 @@ const SHAPES: ShapeOption[] = [
     icon: (color) => (
       <View style={{ width: 30, height: 28, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '36deg' }] }} />
     ),
-  },
+  }
 ];
 
 export default function SetupScreen() {
@@ -158,7 +179,7 @@ export default function SetupScreen() {
       return;
     }
     setValidationError('');
-    router.replace({
+    router.push({
       pathname: '/',
       params: { unit: selectedUnit, shape: selectedShape, state: selectedState, handUnit: selectedHandUnit, customDhurSqFt },
     });
@@ -176,9 +197,6 @@ export default function SetupScreen() {
           <View style={styles.header}>
             <ThemedText type="subtitle" style={styles.headerTitle}>
               Area Finder
-            </ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.headerSubtitle}>
-              Select a measurement unit and shape to get started.
             </ThemedText>
           </View>
 

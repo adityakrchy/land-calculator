@@ -1,3 +1,4 @@
+import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   Pressable,
@@ -7,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     fontSize: 18,
+    borderColor: 'black',
     textAlign: 'center',
     fontWeight: '600',
   },
