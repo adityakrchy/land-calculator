@@ -63,7 +63,31 @@ const shapeDiagonalKeyCache: Record<string, 'AC' | 'BD'> = {};
 const shapeProceedNoDiagCache: Record<string, boolean> = {};
 const shapePolygonSidesCache: Record<string, string[]> = {};
 const shapePolygonCountCache: Record<string, number> = {};
+const shapePolygonDiagonalsCache: Record<string, Record<string, string>> = {};
+const shapePolygonDiagKeysCache: Record<string, string[]> = {};
 const shapeCircleDiameterCache: Record<string, string> = {};
+
+/**
+ * Generates all possible diagonal keys for an N-sided polygon.
+ * Returns array of { key, from, to } where from/to are vertex indices and
+ * key is e.g. "AC", "BD" etc.
+ * Number of diagonals for N sides = N(N-3)/2.
+ */
+function generatePolygonDiagonals(N: number): { key: string; from: number; to: number }[] {
+  const diags: { key: string; from: number; to: number }[] = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 2; j < N; j++) {
+      // Skip the edge that wraps around (last vertex to first)
+      if (i === 0 && j === N - 1) continue;
+      diags.push({
+        key: `${String.fromCharCode(65 + i)}${String.fromCharCode(65 + j)}`,
+        from: i,
+        to: j,
+      });
+    }
+  }
+  return diags;
+}
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
@@ -79,8 +103,12 @@ export default function HomeScreen() {
   const [proceedWithoutDiagonal, setProceedWithoutDiagonal] = useState(false);
 
   // Polygon state
-  const [polygonSideCount, setPolygonSideCount] = useState(5);
-  const [polygonSides, setPolygonSides] = useState<string[]>(['', '', '', '', '']);
+  const [polygonSideCount, setPolygonSideCount] = useState(3);
+  const [polygonSides, setPolygonSides] = useState<string[]>(['', '', '']);
+  const [polygonDiagonals, setPolygonDiagonals] = useState<Record<string, string>>({});
+  const [polygonDiagKeys, setPolygonDiagKeys] = useState<string[]>([]);
+  const [activeDiagSlot, setActiveDiagSlot] = useState<number | null>(null);
+  const [proceedWithoutPolygonDiagonals, setProceedWithoutPolygonDiagonals] = useState(false);
   const [circleDiameter, setCircleDiameter] = useState('');
 
   // Redirect to setup if no params provided
@@ -120,11 +148,31 @@ export default function HomeScreen() {
     if (cachedPolyCount) {
       setPolygonSideCount(cachedPolyCount);
     }
+    const cachedPolyDiagonals = shapePolygonDiagonalsCache[params.shape];
+    if (cachedPolyDiagonals) {
+      setPolygonDiagonals(cachedPolyDiagonals);
+    }
+    const cachedPolyDiagKeys = shapePolygonDiagKeysCache[params.shape];
+    if (cachedPolyDiagKeys) {
+      setPolygonDiagKeys(cachedPolyDiagKeys);
+    }
     const cachedDiameter = shapeCircleDiameterCache[params.shape];
     if (cachedDiameter !== undefined) {
       setCircleDiameter(cachedDiameter);
     }
   }, [params.shape]);
+
+  // Initialize polygon diagonal slot keys when side count changes and none are set
+  useEffect(() => {
+    if (selectedShape === 'polygon' && polygonDiagKeys.length === 0 && polygonSideCount >= 4) {
+      const keys: string[] = [];
+      for (let i = 2; i < polygonSideCount - 1; i++) {
+        keys.push(`A${String.fromCharCode(65 + i)}`);
+      }
+      setPolygonDiagKeys(keys);
+      shapePolygonDiagKeysCache[selectedShape] = keys;
+    }
+  }, [selectedShape, polygonSideCount, polygonDiagKeys.length]);
 
   // Handle hardware back button on Android — go back to setup instead of quitting
   useEffect(() => {
@@ -172,6 +220,7 @@ export default function HomeScreen() {
     let hasInputs = false;
     let solvedTriangle: { a: number; b: number; c: number; A: number; B: number; C: number } | null = null;
     let solvedQuad: { a: number; b: number; c: number; d: number; A: number; B: number; C: number; D: number } | null = null;
+    let polygonDiagValidation: Record<string, number> = {};
 
     const toRad = Math.PI / 180;
     const toDeg = 180 / Math.PI;
@@ -366,19 +415,80 @@ export default function HomeScreen() {
       //   break;
       // }
       case 'polygon': {
-        const parsed = polygonSides.map(s => parseFloat(s));
-        const allValid = polygonSideCount >= 5 && parsed.every(v => !isNaN(v) && v > 0);
-        hasInputs = allValid && polygonSideCount >= 5;
+        const parseSide = (val: string) => {
+          if (!val) return NaN;
+          if (unit !== 'ft') return parseFloat(val);
+          const parts = val.split('.');
+          const feet = parseInt(parts[0], 10);
+          const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+          if (isNaN(feet) && isNaN(inches)) return NaN;
+          return (isNaN(feet) ? 0 : feet) + (isNaN(inches) ? 0 : inches / 12);
+        };
+        const parsed = polygonSides.map(s => parseSide(s));
+        const allValid = polygonSideCount >= 3 && parsed.every(v => !isNaN(v) && v > 0);
+        hasInputs = allValid && polygonSideCount >= 3;
 
         if (hasInputs && validatePolygonSides(parsed)) {
-          isValid = true;
-          const points = generatePolygon(parsed);
-          area = calculateArea(points, parsed);
+          if (polygonSideCount >= 4 && polygonDiagKeys.length > 0) {
+            // Check if all N-3 fan diagonals are entered
+            const diagVals = polygonDiagKeys
+              .map(k => parseSide(polygonDiagonals[k]))
+              .filter(v => !isNaN(v) && v > 0);
+            const allDiagsEntered = diagVals.length >= polygonSideCount - 3;
+
+            if (allDiagsEntered) {
+              // Path 1: Heron triangulation using fan from vertex A
+              isValid = true;
+              const heron = (a: number, b: number, c: number) => {
+                const s = (a + b + c) / 2;
+                return Math.sqrt(Math.max(0, s * (s - a) * (s - b) * (s - c)));
+              };
+              let totalArea = 0;
+              totalArea += heron(parsed[0], parsed[1], diagVals[0]);
+              for (let i = 1; i < polygonSideCount - 3; i++) {
+                totalArea += heron(diagVals[i - 1], parsed[i + 1], diagVals[i]);
+              }
+              if (polygonSideCount >= 4) {
+                totalArea += heron(diagVals[diagVals.length - 1], parsed[polygonSideCount - 2], parsed[polygonSideCount - 1]);
+              }
+              area = totalArea;
+            } else if (proceedWithoutPolygonDiagonals) {
+              // Path 2: User acknowledged — use shoelace
+              isValid = true;
+              const points = generatePolygon(parsed);
+              area = calculateArea(points, parsed);
+              polygonDiagValidation = {};
+              for (const diagKey of polygonDiagKeys) {
+                const fromIdx = diagKey.charCodeAt(0) - 65;
+                const toIdx = diagKey.charCodeAt(1) - 65;
+                if (fromIdx >= 0 && fromIdx < points.length && toIdx >= 0 && toIdx < points.length) {
+                  const dx = points[toIdx].x - points[fromIdx].x;
+                  const dy = points[toIdx].y - points[fromIdx].y;
+                  polygonDiagValidation[diagKey] = Math.sqrt(dx * dx + dy * dy);
+                }
+              }
+            }
+            // else: isValid remains false → shows "Proceed without diagonals" button
+          } else {
+            // Triangles (N=3) or polygon with no diagonal slots: use shoelace
+            isValid = true;
+            const points = generatePolygon(parsed);
+            area = calculateArea(points, parsed);
+          }
         }
         break;
       }
       case 'circle': {
-        const d = parseFloat(circleDiameter);
+        const parseCircleDiameter = () => {
+          if (!circleDiameter) return NaN;
+          if (unit !== 'ft') return parseFloat(circleDiameter);
+          const parts = circleDiameter.split('.');
+          const feet = parseInt(parts[0], 10);
+          const inches = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+          if (isNaN(feet) && isNaN(inches)) return NaN;
+          return (isNaN(feet) ? 0 : feet) + (isNaN(inches) ? 0 : inches / 12);
+        };
+        const d = parseCircleDiameter();
         const isDiameterValid = !isNaN(d) && d > 0;
         hasInputs = isDiameterValid;
         if (isDiameterValid) {
@@ -467,8 +577,8 @@ export default function HomeScreen() {
     // Standard is allowed — it just won't show a dhur conversion
     const finalValid = isValid && (dhurInfo !== null);
 
-    return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle, solvedQuad };
-  }, [selectedShape, inputs, unit, dhurInfo, diagonalKey, proceedWithoutDiagonal, polygonSides, polygonSideCount, circleDiameter]);
+    return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle, solvedQuad, polygonDiagValidation };
+  }, [selectedShape, inputs, unit, dhurInfo, diagonalKey, proceedWithoutDiagonal, polygonSides, polygonSideCount, polygonDiagonals, polygonDiagKeys, circleDiameter]);
 
   const renderAreaConversions = () => {
     if (!calculationResult.isValid) return null;
@@ -1057,15 +1167,24 @@ export default function HomeScreen() {
           <View style={styles.polygonSideCountRow}>
             <Pressable
               onPress={() => {
-                if (polygonSideCount > 5) {
+                if (polygonSideCount > 3) {
                   const newCount = polygonSideCount - 1;
                   setPolygonSideCount(newCount);
                   setPolygonSides(prev => prev.slice(0, newCount));
+                  setPolygonDiagonals({});
+                  // Pre-populate N-3 slots with fan diagonals from A
+                  const newKeys: string[] = [];
+                  for (let i = 2; i < newCount - 1; i++) {
+                    newKeys.push(`A${String.fromCharCode(65 + i)}`);
+                  }
+                  setPolygonDiagKeys(newKeys);
                   shapePolygonCountCache[selectedShape] = newCount;
                   shapePolygonSidesCache[selectedShape] = polygonSides.slice(0, newCount);
+                  shapePolygonDiagonalsCache[selectedShape] = {};
+                  shapePolygonDiagKeysCache[selectedShape] = newKeys;
                 }
               }}
-              style={[styles.polygonCountBtn, { opacity: polygonSideCount > 5 ? 1 : 0.3 }]}
+              style={[styles.polygonCountBtn, { opacity: polygonSideCount > 3 ? 1 : 0.3 }]}
             >
               <ThemedText type="defaultSemiBold" style={styles.polygonCountBtnText}>−</ThemedText>
             </Pressable>
@@ -1078,8 +1197,17 @@ export default function HomeScreen() {
                   const newCount = polygonSideCount + 1;
                   setPolygonSideCount(newCount);
                   setPolygonSides(prev => [...prev, '']);
+                  setPolygonDiagonals({});
+                  // Pre-populate N-3 slots with fan diagonals from A
+                  const newKeys: string[] = [];
+                  for (let i = 2; i < newCount - 1; i++) {
+                    newKeys.push(`A${String.fromCharCode(65 + i)}`);
+                  }
+                  setPolygonDiagKeys(newKeys);
                   shapePolygonCountCache[selectedShape] = newCount;
                   shapePolygonSidesCache[selectedShape] = [...polygonSides, ''];
+                  shapePolygonDiagonalsCache[selectedShape] = {};
+                  shapePolygonDiagKeysCache[selectedShape] = newKeys;
                 }
               }}
               style={[styles.polygonCountBtn, { opacity: polygonSideCount < 20 ? 1 : 0.3 }]}
@@ -1094,7 +1222,7 @@ export default function HomeScreen() {
               return (
                 <View key={`poly-${i}`} style={styles.triangleRow}>
                   <ThemedText type="small" style={styles.triangleRowLabel}>
-                    {String.fromCharCode(65 + i)}{String.fromCharCode(66 + i)}
+                    {String.fromCharCode(65 + i)}{String.fromCharCode(65 + (i + 1) % polygonSideCount)}
                   </ThemedText>
                   <View style={{ position: 'relative', flex: 1 }}>
                     <TextInput
@@ -1127,6 +1255,224 @@ export default function HomeScreen() {
               );
             })}
           </View>
+
+          {/* Diagonal slots: N-3 dropdown+input rows for 4+ sides */}
+          {polygonSideCount >= 4 && (() => {
+            const diagCount = polygonSideCount - 3;
+            const allDiagonals = generatePolygonDiagonals(polygonSideCount);
+            const filledCount = polygonDiagKeys.filter(k => polygonDiagonals[k]).length;
+            return (
+              <View style={[styles.diagonalsSection, { marginTop: Spacing.three, borderTopWidth: 1, borderTopColor: theme.backgroundSelected, paddingTop: Spacing.three }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <ThemedText type="smallBold" style={styles.diagonalsTitle}>
+                    Diagonals
+                  </ThemedText>
+                  <ThemedText type="small" style={styles.diagonalsSubtitle}>
+                    {polygonSideCount} sides → {polygonSideCount - 2} triangles · need {diagCount}
+                  </ThemedText>
+                </View>
+
+                {/* N-3 rows: each with a dropdown to pick diagonal + value input */}
+                <View style={styles.polygonDiagonalGrid}>
+                  {polygonDiagKeys.map((diagKey, slotIdx) => {
+                    const isActive = activeField === `polyDiagSlot${slotIdx}`;
+                    const hasValue = !!polygonDiagonals[diagKey];
+                    return (
+                      <View key={`slot-${slotIdx}`} style={styles.triangleRow}>
+                        {/* Dropdown button for this slot */}
+                        <Pressable
+                          onPress={() => setActiveDiagSlot(slotIdx)}
+                          style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === `polyDiagSlot${slotIdx}` ? '#3c87f7' : theme.backgroundSelected }]}
+                        >
+                          <ThemedText type="small" style={[styles.triangleRowLabel, { fontSize: 12, marginRight: 2, minWidth: 28 }]}>
+                            {diagKey}
+                          </ThemedText>
+                          <ThemedText type="small" style={{ fontSize: 8, color: theme.textSecondary }}>▼</ThemedText>
+                        </Pressable>
+
+                        {/* Value input */}
+                        <View style={{ position: 'relative', flex: 1 }}>
+                          <TextInput
+                            style={[
+                              styles.textInput,
+                              {
+                                backgroundColor: theme.backgroundElement,
+                                color: theme.text,
+                                borderColor: isActive ? '#3c87f7' : '#000000ff',
+                              },
+                            ]}
+                            value={polygonDiagonals[diagKey] || ''}
+                            onChangeText={val => {
+                              const cleaned = val.replace(/[^0-9.]/g, '');
+                              const pts = cleaned.split('.');
+                              const formatted = pts.length > 2 ? `${pts[0]}.${pts.slice(1).join('')}` : cleaned;
+                              const newDiagonals = { ...polygonDiagonals, [diagKey]: formatted };
+                              setPolygonDiagonals(newDiagonals);
+                              shapePolygonDiagonalsCache[selectedShape] = newDiagonals;
+                            }}
+                            placeholder="0"
+                            placeholderTextColor={theme.textSecondary}
+                            keyboardType="decimal-pad"
+                            onFocus={() => setActiveField(`polyDiagSlot${slotIdx}`)}
+                            onBlur={() => setActiveField(null)}
+                          />
+                        </View>
+
+                        {/* Clear button */}
+                        {hasValue && (
+                          <Pressable
+                            onPress={() => {
+                              const { [diagKey]: _, ...rest } = polygonDiagonals;
+                              setPolygonDiagonals(rest);
+                              shapePolygonDiagonalsCache[selectedShape] = rest;
+                            }}
+                            style={{ padding: Spacing.half }}
+                          >
+                            <ThemedText type="small" style={{ color: '#ff4d4f', fontWeight: '700', fontSize: 16 }}>✕</ThemedText>
+                          </Pressable>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Status */}
+                {filledCount > 0 && (
+                  <ThemedText
+                    type="small"
+                    style={{
+                      color: filledCount >= diagCount ? '#3c87f7' : '#888',
+                      fontWeight: '600',
+                      fontSize: 11,
+                    }}
+                  >
+                    {filledCount >= diagCount
+                      ? `✓ All ${diagCount} diagonal${diagCount !== 1 ? 's' : ''} entered — triangulation ready`
+                      : `${filledCount}/${diagCount} diagonal${diagCount !== 1 ? 's' : ''} entered`}
+                  </ThemedText>
+                )}
+
+                {/* Diagonal validation: user-entered vs computed from coordinates */}
+                {calculationResult.isValid && calculationResult.polygonDiagValidation &&
+                 Object.keys(calculationResult.polygonDiagValidation).length > 0 && (
+                  <View style={{ gap: Spacing.half, marginTop: Spacing.one }}>
+                    <ThemedText type="small" style={{ fontSize: 10, opacity: 0.6 }}>
+                      Comparison: user value vs computed from coordinates
+                    </ThemedText>
+                    {Object.entries(calculationResult.polygonDiagValidation).map(([key, computed]) => {
+                      const userVal = parseFloat(polygonDiagonals[key]);
+                      if (isNaN(userVal)) return null;
+                      const diff = Math.abs(userVal - computed);
+                      const match = diff < 0.5;
+                      return (
+                        <View key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.one }}>
+                          <ThemedText type="small" style={{ fontSize: 10, fontWeight: '600', minWidth: 28 }}>
+                            {key}
+                          </ThemedText>
+                          <ThemedText type="small" style={{ fontSize: 10, color: match ? '#3c87f7' : '#ff4d4f' }}>
+                            you: {userVal.toFixed(1)}m
+                          </ThemedText>
+                          <ThemedText type="small" style={{ fontSize: 10, color: theme.textSecondary }}>
+                            vs {computed.toFixed(1)}m
+                          </ThemedText>
+                          {!match && (
+                            <ThemedText type="small" style={{ fontSize: 9, color: '#ff4d4f' }}>
+                              Δ {diff.toFixed(1)}
+                            </ThemedText>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Diagonal picker modal for active slot */}
+                <Modal
+                  visible={activeDiagSlot !== null && activeDiagSlot < polygonDiagKeys.length}
+                  transparent
+                  animationType="fade"
+                  onRequestClose={() => setActiveDiagSlot(null)}
+                >
+                  <Pressable
+                    style={styles.modalOverlay}
+                    onPress={() => setActiveDiagSlot(null)}
+                  >
+                    <Pressable
+                      style={[styles.modalContent, { backgroundColor: theme.background }]}
+                      onPress={() => {}}
+                    >
+                      <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                        <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
+                          Pick Diagonal for Slot {activeDiagSlot !== null ? activeDiagSlot + 1 : ''}
+                        </ThemedText>
+                        <Pressable onPress={() => setActiveDiagSlot(null)}>
+                          <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                            Done
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                      {allDiagonals.map((diag) => {
+                        const isUsed = polygonDiagKeys.some((k, i) => k === diag.key && i !== activeDiagSlot);
+                        const isSelected = activeDiagSlot !== null && polygonDiagKeys[activeDiagSlot] === diag.key;
+                        return (
+                          <Pressable
+                            key={diag.key}
+                            onPress={() => {
+                              if (activeDiagSlot === null) return;
+                              if (isUsed) return; // already assigned to another slot
+                              // Move value from old diagonal to new one if we're swapping
+                              const oldKey = polygonDiagKeys[activeDiagSlot];
+                              const oldVal = polygonDiagonals[oldKey];
+                              const newDiagonals = { ...polygonDiagonals };
+                              delete newDiagonals[oldKey];
+                              if (oldVal) newDiagonals[diag.key] = oldVal;
+                              const newKeys = [...polygonDiagKeys];
+                              newKeys[activeDiagSlot] = diag.key;
+                              setPolygonDiagKeys(newKeys);
+                              setPolygonDiagonals(newDiagonals);
+                              shapePolygonDiagKeysCache[selectedShape] = newKeys;
+                              shapePolygonDiagonalsCache[selectedShape] = newDiagonals;
+                              setActiveDiagSlot(null);
+                            }}
+                            style={[
+                              styles.modalOptionRow,
+                              (isSelected || isUsed) && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
+                            ]}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, flex: 1 }}>
+                              <ThemedText
+                                type="default"
+                                style={{
+                                  color: isUsed ? theme.textSecondary : (isSelected ? '#3c87f7' : theme.text),
+                                  fontWeight: isSelected ? '700' : '400',
+                                  textDecorationLine: isUsed ? 'line-through' : 'none',
+                                }}
+                              >
+                                {diag.key}
+                              </ThemedText>
+                              {isUsed && (
+                                <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 10 }}>
+                                  (used)
+                                </ThemedText>
+                              )}
+                              {polygonDiagonals[diag.key] && !isUsed && (
+                                <ThemedText type="small" style={{ color: '#3c87f7', fontSize: 11 }}>
+                                  = {polygonDiagonals[diag.key]}m
+                                </ThemedText>
+                              )}
+                            </View>
+                            {isSelected && (
+                              <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>✓</ThemedText>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </Pressable>
+                  </Pressable>
+                </Modal>
+              </View>
+            );
+          })()}
         </View>
       );
     }
@@ -1323,6 +1669,11 @@ export default function HomeScreen() {
         formatLabel(bNum, inputs.sideB),
         formatLabel(cNum, undefined),
       ];
+    } else if (selectedShape === 'polygon' && unit === 'ft') {
+      sideLabels = polygonSides.map(sn => {
+        const num = parseSideNum(sn);
+        return num > 0 ? formatLabel(num, sn) : '';
+      });
     }
 
     return { sides: s, sideLabels };
@@ -1364,6 +1715,8 @@ export default function HomeScreen() {
                 sideLabels={sideData.sideLabels}
                 diagonal={selectedShape === 'quadrilateral' ? inputs.diagonal : undefined}
                 diagonalKey={selectedShape === 'quadrilateral' ? diagonalKey : undefined}
+                polygonDiagonals={selectedShape === 'polygon' ? polygonDiagonals : undefined}
+                unit={unit}
               />
             </View>
 
@@ -1414,6 +1767,18 @@ export default function HomeScreen() {
                         >
                           <ThemedText type="defaultSemiBold" style={styles.proceedButtonText}>
                             Proceed without diagonal
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    ) : selectedShape === 'polygon' && polygonSideCount >= 4 &&
+                      calculationResult.hasInputs && !proceedWithoutPolygonDiagonals ? (
+                      <View style={styles.proceedContainer}>
+                        <Pressable
+                          onPress={() => setProceedWithoutPolygonDiagonals(true)}
+                          style={styles.proceedButton}
+                        >
+                          <ThemedText type="defaultSemiBold" style={styles.proceedButtonText}>
+                            Proceed without diagonals
                           </ThemedText>
                         </Pressable>
                       </View>
@@ -1813,5 +2178,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 80,
     textAlign: 'center',
+  },
+
+  // Polygon diagonal section
+  diagonalsSection: {
+    gap: Spacing.two,
+  },
+  diagonalsTitle: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    opacity: 0.7,
+  },
+  diagonalsSubtitle: {
+    fontSize: 11,
+    opacity: 0.6,
+  },
+  polygonDiagonalGrid: {
+    gap: Spacing.one,
   },
 });

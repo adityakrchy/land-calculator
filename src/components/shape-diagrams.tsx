@@ -1,3 +1,4 @@
+import React from 'react';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { calculateInteriorAngles, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
@@ -14,9 +15,26 @@ interface ShapeDiagramProps {
   sideLabels?: string[];
   diagonal?: string;
   diagonalKey?: 'AC' | 'BD';
+  /** Polygon diagonal values keyed by vertex pair e.g. "AC": "12.5" */
+  polygonDiagonals?: Record<string, string>;
+  /** Measurement unit for formatted display */
+  unit?: string;
 }
 
-export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, diagonalKey }: ShapeDiagramProps) {
+/** Format a feet.inches input value for display, e.g. "30.5" → "30 ft 5 in" */
+function formatFeetLabel(val: string): string {
+  if (!val) return '';
+  const parts = val.split('.');
+  const ft = parseInt(parts[0], 10);
+  const inch = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+  if (!isNaN(ft)) {
+    if (inch > 0) return `${ft} ft ${inch} in`;
+    return `${ft} ft`;
+  }
+  return val;
+}
+
+export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, diagonalKey, polygonDiagonals, unit }: ShapeDiagramProps) {
   const theme = useTheme();
 
   const scaleVal = useSharedValue(1);
@@ -949,15 +967,19 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
 
       case 'polygon': {
         const sideNums = sides.map(s => parseFloat(s));
-        const allValid = sideNums.length >= 5 && sideNums.every(s => !isNaN(s) && s > 0);
+        const allValid = sideNums.length >= 3 && sideNums.every(s => !isNaN(s) && s > 0);
         const validPoly = allValid && validatePolygonSides(sideNums);
 
         let modelPoints: { x: number; y: number }[];
         if (validPoly) {
           modelPoints = generatePolygon(sideNums);
         } else {
-          modelPoints = generatePolygon([5, 5, 5, 5, 5]);
+          const defaultSides = new Array(sideNums.length).fill(5);
+          modelPoints = generatePolygon(defaultSides);
         }
+
+        // Compute interior angles from model points (same as triangle/quadrilateral cases)
+        const angles = validPoly ? calculateInteriorAngles(modelPoints) : modelPoints.map(() => 0);
 
         const N = modelPoints.length;
         const rotPoints = modelPoints.map(p => ({ x: p.y, y: -p.x }));
@@ -985,20 +1007,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
         const centroidX = vPoints.reduce((s, p) => s + p.x, 0) / N;
         const centroidY = vPoints.reduce((s, p) => s + p.y, 0) / N;
 
-        const renderPolyLine = (start: { x: number; y: number }, end: { x: number; y: number }, color: string, key: string) => {
-          const len = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
-          const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
-          const mx = (start.x + end.x) / 2;
-          const my = (start.y + end.y) / 2;
-          return (
-            <View key={key} style={{
-              position: 'absolute', left: mx - len / 2, top: my - 1,
-              width: len, height: 2, backgroundColor: color,
-              transform: [{ rotate: `${angle}deg` }],
-            }} />
-          );
-        };
-
+        // Helper: push outward from centroid
         const getLabelPos = (p: { x: number; y: number }, d: number) => {
           const vx = p.x - centroidX;
           const vy = p.y - centroidY;
@@ -1006,22 +1015,178 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
           return { x: p.x + (vx / len) * d, y: p.y + (vy / len) * d };
         };
 
+        // Helper: pull inward from vertex (for angle labels)
+        const getInteriorPos = (p: { x: number; y: number }, d: number) => {
+          const vx = centroidX - p.x;
+          const vy = centroidY - p.y;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * d, y: p.y + (vy / len) * d };
+        };
+
+        // Edge midpoint helper
+        const midPoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2,
+        });
+
+        // SVG arc renderer (same as triangle/quadrilateral)
+        const renderArc = (v: { x: number; y: number }, adj1: { x: number; y: number }, adj2: { x: number; y: number }, R: number, color: string) => {
+          const u = { x: adj1.x - v.x, y: adj1.y - v.y };
+          const w = { x: adj2.x - v.x, y: adj2.y - v.y };
+          const lenU = Math.sqrt(u.x * u.x + u.y * u.y) || 1;
+          const lenW = Math.sqrt(w.x * w.x + w.y * w.y) || 1;
+          const nu = { x: u.x / lenU, y: u.y / lenU };
+          const nw = { x: w.x / lenW, y: w.y / lenW };
+          const A = { x: v.x + nu.x * R, y: v.y + nu.y * R };
+          const B = { x: v.x + nw.x * R, y: v.y + nw.y * R };
+          const cross = nu.x * nw.y - nu.y * nw.x;
+          const sweep = cross > 0 ? 1 : 0;
+          return <Path d={`M ${A.x} ${A.y} A ${R} ${R} 0 0 ${sweep} ${B.x} ${B.y}`} fill="none" stroke={color} strokeWidth="1.5" />;
+        };
+
         return (
           <View style={styles.canvas}>
+            {/* Edges with side length labels */}
             {vPoints.map((p, i) => {
               const next = vPoints[(i + 1) % N];
               const isActive = activeField === `polySide${i}`;
-              return renderPolyLine(p, next, isActive ? '#3c87f7' : theme.textSecondary, `edge-${i}`);
+              return (
+                <React.Fragment key={`edge-${i}`}>
+                  {/* Corresponding model point index for this edge */}
+                  <View style={{
+                    position: 'absolute',
+                    left: midPoint(p, next).x - Math.sqrt(Math.pow(next.x - p.x, 2) + Math.pow(next.y - p.y, 2)) / 2,
+                    top: midPoint(p, next).y - 1,
+                    width: Math.sqrt(Math.pow(next.x - p.x, 2) + Math.pow(next.y - p.y, 2)),
+                    height: 2,
+                    backgroundColor: isActive ? '#3c87f7' : theme.textSecondary,
+                    transform: [{ rotate: `${Math.atan2(next.y - p.y, next.x - p.x) * 180 / Math.PI}deg` }],
+                  }} />
+                  {/* Side label at midpoint pushed outward */}
+                  {(() => {
+                    const mp = midPoint(p, next);
+                    const labelPos = getLabelPos(mp, 22);
+                    const labelText = validPoly ? (sideLabels?.[i] ?? `${sideNums[i] || ''}`) : `${sideNums[i] || ''}`;
+                    return (
+                      <View style={[styles.labelBox, {
+                        left: labelPos.x - 25, top: labelPos.y - 10, width: 50,
+                        backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
+                        borderColor: isActive ? '#3c87f7' : 'rgba(120,120,120,0.2)',
+                      }]} pointerEvents="none">
+                        <RNText style={[styles.labelBoxText, { color: isActive ? '#ffffff' : theme.text }]}>
+                          {labelText}
+                        </RNText>
+                      </View>
+                    );
+                  })()}
+                </React.Fragment>
+              );
             })}
+
+            {/* Diagonal lines (SVG dashed) + labels */}
+            {polygonDiagonals && Object.keys(polygonDiagonals).length > 0 && (
+              <>
+                <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                  {Object.entries(polygonDiagonals).map(([diagKey, diagVal]) => {
+                    if (!diagVal) return null;
+                    const fromIdx = diagKey.charCodeAt(0) - 65;
+                    const toIdx = diagKey.charCodeAt(1) - 65;
+                    if (fromIdx < 0 || fromIdx >= N || toIdx < 0 || toIdx >= N) return null;
+                    const from = vPoints[fromIdx];
+                    const to = vPoints[toIdx];
+                    if (!from || !to) return null;
+                    const isActive = activeField === `polyDiag${diagKey}`;
+                    return (
+                      <Path
+                        key={`diag-${diagKey}`}
+                        d={`M ${from.x} ${from.y} L ${to.x} ${to.y}`}
+                        stroke={isActive ? '#3c87f7' : 'rgba(60, 135, 247, 0.4)'}
+                        strokeWidth={isActive ? 2 : 1}
+                        strokeDasharray="6,4"
+                        fill="none"
+                      />
+                    );
+                  })}
+                </Svg>
+                {/* Diagonal value labels */}
+                {Object.entries(polygonDiagonals).map(([diagKey, diagVal]) => {
+                  if (!diagVal) return null;
+                  const fromIdx = diagKey.charCodeAt(0) - 65;
+                  const toIdx = diagKey.charCodeAt(1) - 65;
+                  if (fromIdx < 0 || fromIdx >= N || toIdx < 0 || toIdx >= N) return null;
+                  const from = vPoints[fromIdx];
+                  const to = vPoints[toIdx];
+                  if (!from || !to) return null;
+                  const isActive = activeField === `polyDiag${diagKey}`;
+                  const mp = midPoint(from, to);
+                  // Position label outward from the polygon's centroid
+                  const dx = mp.x - centroidX;
+                  const dy = mp.y - centroidY;
+                  const dLen = Math.sqrt(dx * dx + dy * dy) || 1;
+                  const labelPos = {
+                    x: mp.x + (dx / dLen) * 16,
+                    y: mp.y + (dy / dLen) * 16,
+                  };
+                  const displayVal = unit === 'ft' ? formatFeetLabel(diagVal) : diagVal;
+                  return (
+                    <View key={`dlbl-${diagKey}`} style={[styles.labelBox, {
+                      left: labelPos.x - 25, top: labelPos.y - 10, width: 50,
+                      backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
+                      borderColor: isActive ? '#3c87f7' : 'rgba(60,135,247,0.3)',
+                    }]} pointerEvents="none">
+                      <RNText style={[styles.labelBoxText, {
+                        color: isActive ? '#ffffff' : '#3c87f7',
+                        fontSize: 10,
+                      }]}>
+                        {displayVal}
+                      </RNText>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Angle arcs via SVG */}
+            {validPoly && (
+              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                {vPoints.map((p, i) => {
+                  const prev = vPoints[(i - 1 + N) % N];
+                  const next = vPoints[(i + 1) % N];
+                  const isAngleActive = activeField === `polySide${i}` || activeField === `polySide${(i - 1 + N) % N}`;
+                  return (
+                    <React.Fragment key={`arc-${i}`}>
+                      {renderArc(p, prev, next, 14, isAngleActive ? '#3c87f7' : 'rgba(120,120,120,0.4)')}
+                    </React.Fragment>
+                  );
+                })}
+              </Svg>
+            )}
+
+            {/* Vertex dots */}
             {vPoints.map((p, i) => (
               <View key={`dot-${i}`} style={[styles.apexDot, { left: p.x - 3, top: p.y - 3, backgroundColor: theme.textSecondary }]} />
             ))}
+
+            {/* Vertex labels (A, B, C...) pushed outward */}
             {vPoints.map((p, i) => {
               const pos = getLabelPos(p, 18);
               return (
                 <View key={`vl-${i}`} style={[styles.vertexLabelBox, { left: pos.x - 12, top: pos.y - 10 }]} pointerEvents="none">
                   <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>
                     {String.fromCharCode(65 + i)}
+                  </RNText>
+                </View>
+              );
+            })}
+
+            {/* Angle labels pulled inward from each vertex */}
+            {validPoly && vPoints.map((p, i) => {
+              const anglePos = getInteriorPos(p, 22);
+              const isAngleActive = activeField === `polySide${i}` || activeField === `polySide${(i - 1 + N) % N}`;
+              return (
+                <View key={`al-${i}`} style={[styles.angleLabelBox, { left: anglePos.x - 30, top: anglePos.y - 8 }]} pointerEvents="none">
+                  <RNText style={[styles.angleLabelText, { color: isAngleActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                    ∠{String.fromCharCode(65 + i)} {angles[i].toFixed(1)}°
                   </RNText>
                 </View>
               );
@@ -1091,9 +1256,6 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
   return (
     <GestureDetector gesture={composed}>
       <Animated.View style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
-        {/* <ThemedText style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, color: theme.textSecondary, zIndex: 10, opacity: 0.6 }}>
-          Pinch to zoom, drag to pan. Double tap to reset.
-        </ThemedText> */}
         <Animated.View style={animatedStyle}>
           {renderShape()}
         </Animated.View>

@@ -74,24 +74,12 @@ const SHAPES: ShapeOption[] = [
     ),
   },
   {
-    type: 'square',
-    label: 'Square',
+    type: 'polygon',
+    label: 'Polygon',
     icon: (color) => (
-      <View style={{ width: 28, height: 28, borderWidth: 2, borderColor: color, borderRadius: 2 }} />
-    ),
-  },
-  {
-    type: 'parallelogram',
-    label: 'Parallelogram',
-    icon: (color) => (
-      <View style={{ width: 34, height: 22, borderWidth: 2, borderColor: color, transform: [{ skewX: '-15deg' }], borderRadius: 1 }} />
-    ),
-  },
-  {
-    type: 'trapezoid',
-    label: 'Trapezoid',
-    icon: (color) => (
-      <View style={{ width: 20, height: 0, borderBottomWidth: 24, borderBottomColor: color, borderLeftWidth: 8, borderLeftColor: 'transparent', borderRightWidth: 8, borderRightColor: 'transparent', backgroundColor: 'transparent' }} />
+      <View style={{ width: 32, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: 30, height: 26, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '18deg' }] }} />
+      </View>
     ),
   },
   {
@@ -101,39 +89,6 @@ const SHAPES: ShapeOption[] = [
       <View style={{ width: 30, height: 30, borderWidth: 2, borderColor: color, borderRadius: 15 }} />
     ),
   },
-  {
-    type: 'rhombus',
-    label: 'Rhombus',
-    icon: (color) => (
-      <View style={{ width: 0, height: 0, borderLeftWidth: 16, borderRightWidth: 16, borderBottomWidth: 14, borderTopWidth: 14, borderBottomColor: color, borderTopColor: color, borderLeftColor: 'transparent', borderRightColor: 'transparent', backgroundColor: 'transparent' }} />
-    ),
-  },
-  {
-    type: 'hexagon',
-    label: 'Hexagon',
-    icon: (color) => (
-      <View style={{ position: 'relative', width: 32, height: 28 }}>
-        <View style={{ position: 'absolute', top: 2, left: 4, width: 24, height: 24, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '45deg' }] }} />
-        <View style={{ position: 'absolute', top: 2, left: 4, width: 24, height: 24, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '-45deg' }] }} />
-      </View>
-    ),
-  },
-  {
-    type: 'pentagon',
-    label: 'Pentagon',
-    icon: (color) => (
-      <View style={{ width: 30, height: 28, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '36deg' }] }} />
-    ),
-  },
-  {
-    type: 'polygon',
-    label: 'Polygon',
-    icon: (color) => (
-      <View style={{ width: 32, height: 28, justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ width: 30, height: 26, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '18deg' }] }} />
-      </View>
-    ),
-  }
 ];
 
 export default function SetupScreen() {
