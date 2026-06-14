@@ -19,7 +19,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { calculateArea, calculateInteriorAngles, calculateQuadrilateralByDiagonal, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
 
-type ShapeType = 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'quadrilateral';
+type ShapeType = 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'quadrilateral' | 'polygon' | 'circle';
 
 interface InputFields {
   base?: string;
@@ -61,6 +61,9 @@ function parseDhurFromHandUnit(handUnit?: string, customDhurSqFt?: string): { ft
 const shapeInputsCache: Record<string, InputFields> = {};
 const shapeDiagonalKeyCache: Record<string, 'AC' | 'BD'> = {};
 const shapeProceedNoDiagCache: Record<string, boolean> = {};
+const shapePolygonSidesCache: Record<string, string[]> = {};
+const shapePolygonCountCache: Record<string, number> = {};
+const shapeCircleDiameterCache: Record<string, string> = {};
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
@@ -74,6 +77,11 @@ export default function HomeScreen() {
   const [diagonalKey, setDiagonalKey] = useState<'AC' | 'BD'>('AC');
   const [showDiagonalPicker, setShowDiagonalPicker] = useState(false);
   const [proceedWithoutDiagonal, setProceedWithoutDiagonal] = useState(false);
+
+  // Polygon state
+  const [polygonSideCount, setPolygonSideCount] = useState(5);
+  const [polygonSides, setPolygonSides] = useState<string[]>(['', '', '', '', '']);
+  const [circleDiameter, setCircleDiameter] = useState('');
 
   // Redirect to setup if no params provided
   useEffect(() => {
@@ -103,6 +111,18 @@ export default function HomeScreen() {
       setProceedWithoutDiagonal(true);
     } else {
       setProceedWithoutDiagonal(false);
+    }
+    const cachedPolySides = shapePolygonSidesCache[params.shape];
+    if (cachedPolySides) {
+      setPolygonSides(cachedPolySides);
+    }
+    const cachedPolyCount = shapePolygonCountCache[params.shape];
+    if (cachedPolyCount) {
+      setPolygonSideCount(cachedPolyCount);
+    }
+    const cachedDiameter = shapeCircleDiameterCache[params.shape];
+    if (cachedDiameter !== undefined) {
+      setCircleDiameter(cachedDiameter);
     }
   }, [params.shape]);
 
@@ -345,6 +365,29 @@ export default function HomeScreen() {
       //   area = 0.5 * (a + b) * h;
       //   break;
       // }
+      case 'polygon': {
+        const parsed = polygonSides.map(s => parseFloat(s));
+        const allValid = polygonSideCount >= 5 && parsed.every(v => !isNaN(v) && v > 0);
+        hasInputs = allValid && polygonSideCount >= 5;
+
+        if (hasInputs && validatePolygonSides(parsed)) {
+          isValid = true;
+          const points = generatePolygon(parsed);
+          area = calculateArea(points, parsed);
+        }
+        break;
+      }
+      case 'circle': {
+        const d = parseFloat(circleDiameter);
+        const isDiameterValid = !isNaN(d) && d > 0;
+        hasInputs = isDiameterValid;
+        if (isDiameterValid) {
+          isValid = true;
+          const r = d / 2;
+          area = Math.PI * r * r;
+        }
+        break;
+      }
       case 'quadrilateral': {
         const parseAsNaN = (val?: string) => val ? parseFloat(val) : NaN;
         const parseSide = (val?: string) => {
@@ -425,7 +468,7 @@ export default function HomeScreen() {
     const finalValid = isValid && (dhurInfo !== null);
 
     return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle, solvedQuad };
-  }, [selectedShape, inputs, unit, dhurInfo, diagonalKey, proceedWithoutDiagonal]);
+  }, [selectedShape, inputs, unit, dhurInfo, diagonalKey, proceedWithoutDiagonal, polygonSides, polygonSideCount, circleDiameter]);
 
   const renderAreaConversions = () => {
     if (!calculationResult.isValid) return null;
@@ -1007,6 +1050,125 @@ export default function HomeScreen() {
 
     const fields: { key: keyof InputFields; label: string; placeholder: string }[] = [];
 
+    if (selectedShape === 'polygon') {
+      return (
+        <View>
+          {/* Side count controls */}
+          <View style={styles.polygonSideCountRow}>
+            <Pressable
+              onPress={() => {
+                if (polygonSideCount > 5) {
+                  const newCount = polygonSideCount - 1;
+                  setPolygonSideCount(newCount);
+                  setPolygonSides(prev => prev.slice(0, newCount));
+                  shapePolygonCountCache[selectedShape] = newCount;
+                  shapePolygonSidesCache[selectedShape] = polygonSides.slice(0, newCount);
+                }
+              }}
+              style={[styles.polygonCountBtn, { opacity: polygonSideCount > 5 ? 1 : 0.3 }]}
+            >
+              <ThemedText type="defaultSemiBold" style={styles.polygonCountBtnText}>−</ThemedText>
+            </Pressable>
+            <ThemedText type="defaultSemiBold" style={styles.polygonCountLabel}>
+              {polygonSideCount} sides
+            </ThemedText>
+            <Pressable
+              onPress={() => {
+                if (polygonSideCount < 20) {
+                  const newCount = polygonSideCount + 1;
+                  setPolygonSideCount(newCount);
+                  setPolygonSides(prev => [...prev, '']);
+                  shapePolygonCountCache[selectedShape] = newCount;
+                  shapePolygonSidesCache[selectedShape] = [...polygonSides, ''];
+                }
+              }}
+              style={[styles.polygonCountBtn, { opacity: polygonSideCount < 20 ? 1 : 0.3 }]}
+            >
+              <ThemedText type="defaultSemiBold" style={styles.polygonCountBtnText}>+</ThemedText>
+            </Pressable>
+          </View>
+
+          {/* Side input fields */}
+          <View style={styles.triangleRows}>
+            {Array.from({ length: polygonSideCount }, (_, i) => {
+              return (
+                <View key={`poly-${i}`} style={styles.triangleRow}>
+                  <ThemedText type="small" style={styles.triangleRowLabel}>
+                    {String.fromCharCode(65 + i)}{String.fromCharCode(66 + i)}
+                  </ThemedText>
+                  <View style={{ position: 'relative', flex: 1 }}>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        {
+                          backgroundColor: theme.backgroundElement,
+                          color: theme.text,
+                          borderColor: activeField === `polySide${i}` ? '#3c87f7' : '#000000ff',
+                        },
+                      ]}
+                      value={polygonSides[i] || ''}
+                      onChangeText={val => {
+                        const cleaned = val.replace(/[^0-9.]/g, '');
+                        const pts = cleaned.split('.');
+                        const formatted = pts.length > 2 ? `${pts[0]}.${pts.slice(1).join('')}` : cleaned;
+                        const newSides = [...polygonSides];
+                        newSides[i] = formatted;
+                        setPolygonSides(newSides);
+                        shapePolygonSidesCache[selectedShape] = newSides;
+                      }}
+                      placeholder={`0`}
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="decimal-pad"
+                      onFocus={() => setActiveField(`polySide${i}`)}
+                      onBlur={() => setActiveField(null)}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    if (selectedShape === 'circle') {
+      const unitSuffix = unit === 'kadi' ? 'kadi' : unit;
+      return (
+        <View>
+          <View style={styles.triangleRow}>
+            <ThemedText type="small" style={styles.triangleRowLabel}>
+              Diameter
+            </ThemedText>
+            <View style={{ position: 'relative', flex: 1 }}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: theme.backgroundElement,
+                    color: theme.text,
+                    borderColor: activeField === 'diameter' ? '#3c87f7' : '#000000ff',
+                  },
+                ]}
+                value={circleDiameter}
+                onChangeText={val => {
+                  const cleaned = val.replace(/[^0-9.]/g, '');
+                  const pts = cleaned.split('.');
+                  const formatted = pts.length > 2 ? `${pts[0]}.${pts.slice(1).join('')}` : cleaned;
+                  setCircleDiameter(formatted);
+                  shapeCircleDiameterCache[selectedShape] = formatted;
+                }}
+                placeholder={`0 ${unitSuffix}`}
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                onFocus={() => setActiveField('diameter')}
+                onBlur={() => setActiveField(null)}
+              />
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (selectedShape === 'rectangle') {
       fields.push(
         { key: 'length', label: 'Length (l)', placeholder: 'e.g. 8' },
@@ -1135,7 +1297,11 @@ export default function HomeScreen() {
 
     const s = selectedShape === 'quadrilateral'
       ? [aNum.toString(), bNum.toString(), cNum.toString(), dNum.toString()]
-      : [aNum.toString(), bNum.toString(), cNum.toString()];
+      : selectedShape === 'polygon'
+        ? polygonSides.map(sn => sn || '0')
+        : selectedShape === 'circle'
+          ? [circleDiameter || '0']
+          : [aNum.toString(), bNum.toString(), cNum.toString()];
 
     let sideLabels: string[] | undefined;
     if (selectedShape === 'quadrilateral' && unit === 'ft') {
@@ -1160,7 +1326,7 @@ export default function HomeScreen() {
     }
 
     return { sides: s, sideLabels };
-  }, [selectedShape, unit, inputs, calculationResult]);
+  }, [selectedShape, unit, inputs, calculationResult, polygonSides, circleDiameter]);
 
   return (
     <ThemedView style={styles.container}>
@@ -1169,7 +1335,7 @@ export default function HomeScreen() {
         <View style={[styles.compactHeader, { backgroundColor: theme.backgroundElement, borderBottomColor: theme.backgroundSelected }]}>
           <Pressable onPress={() => router.back()} style={styles.compactHeaderInner}>
             <ThemedText type="default" style={[styles.compactHeaderText, { color: '#3c87f7' }]}>
-              {selectedShape === 'right-angled-triangle' ? 'Right-angled Triangle' : selectedShape === 'scalene-triangle' ? 'Scalene Triangle' : selectedShape === 'quadrilateral' ? 'Quadrilateral' : selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
+              {selectedShape === 'right-angled-triangle' ? 'Right-angled Triangle' : selectedShape === 'scalene-triangle' ? 'Scalene Triangle' : selectedShape === 'quadrilateral' ? 'Quadrilateral' : selectedShape === 'polygon' ? 'Polygon' : selectedShape === 'circle' ? 'Circle' : selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
             </ThemedText>
             <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.textSecondary, marginHorizontal: 6 }]}>
               ·
@@ -1618,5 +1784,34 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  // Polygon side count controls
+  polygonSideCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.four,
+    marginBottom: Spacing.three,
+  },
+  polygonCountBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#3c87f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  polygonCountBtnText: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  polygonCountLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    minWidth: 80,
+    textAlign: 'center',
   },
 });

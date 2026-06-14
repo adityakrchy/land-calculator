@@ -1,14 +1,14 @@
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { calculateInteriorAngles, generatePolygon, generateTriangle } from '@/utils/geometry';
+import { calculateInteriorAngles, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
 import { Text as RNText, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { ThemedText } from './themed-text';
 
 interface ShapeDiagramProps {
-  shape: 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral';
+  shape: 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'rectangle' | 'parallelogram' | 'trapezoid' | 'quadrilateral' | 'polygon' | 'circle';
   activeField: string | null;
   sides: string[];
   sideLabels?: string[];
@@ -943,6 +943,142 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                 </View>
               </>
             )}
+          </View>
+        );
+      }
+
+      case 'polygon': {
+        const sideNums = sides.map(s => parseFloat(s));
+        const allValid = sideNums.length >= 5 && sideNums.every(s => !isNaN(s) && s > 0);
+        const validPoly = allValid && validatePolygonSides(sideNums);
+
+        let modelPoints: { x: number; y: number }[];
+        if (validPoly) {
+          modelPoints = generatePolygon(sideNums);
+        } else {
+          modelPoints = generatePolygon([5, 5, 5, 5, 5]);
+        }
+
+        const N = modelPoints.length;
+        const rotPoints = modelPoints.map(p => ({ x: p.y, y: -p.x }));
+
+        const minX = Math.min(...rotPoints.map(p => p.x));
+        const maxX = Math.max(...rotPoints.map(p => p.x));
+        const minY = Math.min(...rotPoints.map(p => p.y));
+        const maxY = Math.max(...rotPoints.map(p => p.y));
+        const w = maxX - minX;
+        const h = maxY - minY;
+
+        const maxWidth = 220;
+        const maxHeight = 100;
+        const scale = w > 0 && h > 0 ? Math.min(maxWidth / w, maxHeight / h) : 1;
+
+        const offsetX = (300 - w * scale) / 2;
+        const offsetY = (180 - h * scale) / 2;
+
+        const transformPoint = (p: { x: number; y: number }) => ({
+          x: (p.x - minX) * scale + offsetX,
+          y: 180 - ((p.y - minY) * scale + offsetY),
+        });
+
+        const vPoints = rotPoints.map(transformPoint);
+        const centroidX = vPoints.reduce((s, p) => s + p.x, 0) / N;
+        const centroidY = vPoints.reduce((s, p) => s + p.y, 0) / N;
+
+        const renderPolyLine = (start: { x: number; y: number }, end: { x: number; y: number }, color: string, key: string) => {
+          const len = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+          const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+          const mx = (start.x + end.x) / 2;
+          const my = (start.y + end.y) / 2;
+          return (
+            <View key={key} style={{
+              position: 'absolute', left: mx - len / 2, top: my - 1,
+              width: len, height: 2, backgroundColor: color,
+              transform: [{ rotate: `${angle}deg` }],
+            }} />
+          );
+        };
+
+        const getLabelPos = (p: { x: number; y: number }, d: number) => {
+          const vx = p.x - centroidX;
+          const vy = p.y - centroidY;
+          const len = Math.sqrt(vx * vx + vy * vy) || 1;
+          return { x: p.x + (vx / len) * d, y: p.y + (vy / len) * d };
+        };
+
+        return (
+          <View style={styles.canvas}>
+            {vPoints.map((p, i) => {
+              const next = vPoints[(i + 1) % N];
+              const isActive = activeField === `polySide${i}`;
+              return renderPolyLine(p, next, isActive ? '#3c87f7' : theme.textSecondary, `edge-${i}`);
+            })}
+            {vPoints.map((p, i) => (
+              <View key={`dot-${i}`} style={[styles.apexDot, { left: p.x - 3, top: p.y - 3, backgroundColor: theme.textSecondary }]} />
+            ))}
+            {vPoints.map((p, i) => {
+              const pos = getLabelPos(p, 18);
+              return (
+                <View key={`vl-${i}`} style={[styles.vertexLabelBox, { left: pos.x - 12, top: pos.y - 10 }]} pointerEvents="none">
+                  <RNText style={[styles.vertexLabelText, { color: theme.textSecondary }]}>
+                    {String.fromCharCode(65 + i)}
+                  </RNText>
+                </View>
+              );
+            })}
+          </View>
+        );
+      }
+
+      case 'circle': {
+        const diameter = parseFloat(sides[0] || '0');
+        const isValid = !isNaN(diameter) && diameter > 0;
+        const d = isValid ? diameter : 80;
+
+        const cx = 150;
+        const cy = 90;
+        const r = Math.min(d / 2, 80);
+
+        const isActive = activeField === 'diameter';
+
+        return (
+          <View style={styles.canvas}>
+            <Svg style={StyleSheet.absoluteFill}>
+              <Circle
+                cx={cx}
+                cy={cy}
+                r={r}
+                stroke={isActive ? '#3c87f7' : theme.textSecondary}
+                strokeWidth={isActive ? 2.5 : 2}
+                fill="none"
+              />
+            </Svg>
+            <View style={{
+              position: 'absolute',
+              left: cx - r,
+              top: cy - 1,
+              width: r * 2,
+              height: 2,
+              backgroundColor: 'rgba(128,128,128,0.4)',
+              opacity: 0.6,
+            }} />
+            {isValid && (
+              <View style={[styles.labelBox, {
+                left: cx - 25,
+                top: cy + 8,
+                width: 50,
+                backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
+                borderColor: isActive ? '#3c87f7' : 'rgba(128,128,128,0.2)',
+              }]} pointerEvents="none">
+                <RNText style={[styles.labelBoxText, {
+                  color: isActive ? '#ffffff' : theme.text,
+                  fontSize: 10,
+                }]}>
+                  {diameter.toFixed(1)}
+                </RNText>
+              </View>
+            )}
+            <View style={[styles.apexDot, { left: cx - 3, top: cy - 3, backgroundColor: theme.textSecondary }]} />
           </View>
         );
       }

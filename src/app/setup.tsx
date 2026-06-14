@@ -124,6 +124,15 @@ const SHAPES: ShapeOption[] = [
     icon: (color) => (
       <View style={{ width: 30, height: 28, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '36deg' }] }} />
     ),
+  },
+  {
+    type: 'polygon',
+    label: 'Polygon',
+    icon: (color) => (
+      <View style={{ width: 32, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: 30, height: 26, borderWidth: 2, borderColor: color, borderRadius: 1, transform: [{ rotate: '18deg' }] }} />
+      </View>
+    ),
   }
 ];
 
