@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,7 +14,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        { color: theme[themeColor ?? (type === 'linkPrimary' ? 'textLink' : 'text')] },
         type === 'default' && styles.default,
         type === 'defaultSemiBold' && styles.defaultSemiBold,
         type === 'title' && styles.title,
@@ -34,46 +34,50 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 const styles = StyleSheet.create({
   small: {
     fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 500,
+    lineHeight: 21,
+    fontWeight: '400',
   },
   smallBold: {
     fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 700,
+    lineHeight: 21,
+    fontWeight: '600',
   },
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: 500,
+    fontWeight: '400',
   },
   defaultSemiBold: {
     fontSize: 16,
-    lineHeight: 24,
-    fontWeight: 600,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   title: {
     fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontWeight: '600',
+    lineHeight: 52.8,
+    letterSpacing: -1.44,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+    fontSize: 28,
+    lineHeight: 33.6,
+    fontWeight: '600',
+    letterSpacing: -0.84,
   },
   link: {
-    lineHeight: 30,
     fontSize: 14,
+    lineHeight: 19.6,
+    fontWeight: '500',
   },
   linkPrimary: {
-    lineHeight: 30,
     fontSize: 14,
-    color: '#3c87f7',
+    lineHeight: 19.6,
+    fontWeight: '500',
   },
   code: {
     fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
+    fontWeight: '400',
+    fontSize: 13,
+    lineHeight: 19.5,
   },
 });

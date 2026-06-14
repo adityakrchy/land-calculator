@@ -147,7 +147,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
       <Path
         d={`M ${A.x} ${A.y} A ${R} ${R} 0 0 ${sweep} ${B.x} ${B.y}`}
         fill="none"
-        stroke={isActive ? '#3c87f7' : 'rgba(120, 120, 120, 0.4)'}
+        stroke={isActive ? theme.primary : 'rgba(120, 120, 120, 0.4)'}
         strokeWidth={isActive ? '2' : '1'}
       />
     );
@@ -176,7 +176,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                   <Path
                     key={`edge-${i}`}
                     d={`M ${ptStart.x} ${ptStart.y} L ${ptEnd.x} ${ptEnd.y}`}
-                    stroke={isSideActive ? '#3c87f7' : 'rgba(120, 120, 120, 0.3)'}
+                    stroke={isSideActive ? theme.primary : 'rgba(120, 120, 120, 0.3)'}
                     strokeWidth={isSideActive ? '4.5' : '2'}
                     strokeLinecap="round"
                   />
@@ -207,7 +207,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                     cx={pt.x}
                     cy={pt.y}
                     r={isVertexActive ? '6' : '4'}
-                    fill={isVertexActive ? '#3c87f7' : theme.textSecondary}
+                    fill={isVertexActive ? theme.primary : theme.textSecondary}
                     stroke={theme.backgroundElement}
                     strokeWidth="1"
                   />
@@ -247,8 +247,8 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                       left: labelPos.x - rectWidth / 2,
                       top: labelPos.y - 9,
                       width: rectWidth,
-                      backgroundColor: isSideActive ? '#3c87f7' : theme.backgroundElement,
-                      borderColor: isSideActive ? '#3c87f7' : 'rgba(120,120,120,0.2)',
+                      backgroundColor: isSideActive ? theme.primary : theme.backgroundElement,
+                      borderColor: isSideActive ? theme.primary : 'rgba(120,120,120,0.2)',
                     },
                   ]}
                   pointerEvents="none"
@@ -256,7 +256,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                   <RNText
                     style={[
                       styles.sideText,
-                      { color: isSideActive ? '#ffffff' : theme.text },
+                      { color: isSideActive ? theme.onPrimary : theme.text },
                     ]}
                   >
                     {displayText}
@@ -297,7 +297,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                     <RNText
                       style={[
                         styles.vertexText,
-                        { color: isVertexActive ? '#3c87f7' : theme.textSecondary },
+                        { color: isVertexActive ? theme.primary : theme.textSecondary },
                       ]}
                     >
                       {v.id}
@@ -312,7 +312,7 @@ export function PolygonCanvas({ vertices, sideLengths, sideCount, activeField, a
                     <RNText
                       style={[
                         styles.angleText,
-                        { color: isVertexActive ? '#3c87f7' : 'rgba(120, 120, 120, 0.7)' },
+                        { color: isVertexActive ? theme.primary : 'rgba(120, 120, 120, 0.7)' },
                       ]}
                     >
                       {`∠${v.id}: ${angleVal.toFixed(0)}°`}

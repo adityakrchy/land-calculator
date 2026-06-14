@@ -3,8 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -48,7 +49,7 @@ const SHAPES: ShapeOption[] = [
   },
   {
     type: 'right-angled-triangle',
-    label: 'Right-angled Triangle',
+    label: 'Right Triangle',
     icon: (color) => (
       <Svg width="36" height="28" viewBox="0 0 36 28">
         <Path d="M 4 24 L 32 24 L 4 4 Z" stroke={color} strokeWidth="2" fill="none" strokeLinejoin="round" />
@@ -102,6 +103,7 @@ export default function SetupScreen() {
   const [customDhurSqFt, setCustomDhurSqFt] = useState<string>('');
   const [validationError, setValidationError] = useState<string>('');
   const [loaded, setLoaded] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -149,8 +151,23 @@ export default function SetupScreen() {
     });
   };
 
+  const isDark = theme.background === '#0d0e12';
+
   return (
     <ThemedView style={styles.container}>
+      {/* Radial Wash Background */}
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <Svg width="100%" height={380} style={{ position: 'absolute', top: 0, left: 0 }}>
+          <Defs>
+            <RadialGradient id="header-wash" cx="50%" cy="0%" r="50%" fx="50%" fy="0%">
+              <Stop offset="0%" stopColor={isDark ? '#151624' : '#e0efff'} stopOpacity={isDark ? '0.6' : '0.7'} />
+              <Stop offset="100%" stopColor={isDark ? '#0d0e12' : '#f9fafb'} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#header-wash)" />
+        </Svg>
+      </View>
+
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.safeArea}>
         {/* Scrollable content — fills space above the button */}
         <ScrollView
@@ -162,6 +179,9 @@ export default function SetupScreen() {
             <ThemedText type="subtitle" style={styles.headerTitle}>
               Area Finder
             </ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 13, marginTop: -2 }}>
+              Configure your land calculation workspace
+            </ThemedText>
           </View>
 
           {/* Measurement Unit */}
@@ -169,18 +189,17 @@ export default function SetupScreen() {
             <ThemedText type="smallBold" style={styles.sectionTitle}>
               Measurement Unit
             </ThemedText>
-            <View style={styles.optionsRow}>
+            <View style={[styles.optionsRow, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong }]}>
               {UNIT_OPTIONS.map(u => {
                 const isSelected = selectedUnit === u.value;
                 return (
-                  <Pressable
+                  <AnimatedPressable
                     key={u.value}
                     onPress={() => setSelectedUnit(u.value)}
                     style={[
                       styles.optionButton,
-                      {
-                        backgroundColor: isSelected ? '#3c87f7' : theme.backgroundElement,
-                        borderColor: isSelected ? '#3c87f7' : theme.backgroundSelected,
+                      isSelected && {
+                        backgroundColor: theme.primary,
                       },
                     ]}
                   >
@@ -188,12 +207,12 @@ export default function SetupScreen() {
                       type="defaultSemiBold"
                       style={[
                         styles.optionText,
-                        { color: isSelected ? '#ffffff' : theme.text },
+                        { color: isSelected ? theme.onPrimary : theme.textSecondary },
                       ]}
                     >
                       {u.label}
                     </ThemedText>
-                  </Pressable>
+                  </AnimatedPressable>
                 );
               })}
             </View>
@@ -205,7 +224,7 @@ export default function SetupScreen() {
               Location & Local Unit
             </ThemedText>
             {selectedHandUnit && selectedHandUnit !== 'Standard' ? (
-              <ThemedText type="default" style={styles.dhurPreview}>
+              <ThemedText type="default" style={[styles.dhurPreview, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong, color: theme.text }]}>
                 {(() => {
                   if (selectedHandUnit === 'Custom') {
                     if (!customDhurSqFt || isNaN(parseFloat(customDhurSqFt)) || parseFloat(customDhurSqFt) <= 0) return null;
@@ -221,11 +240,11 @@ export default function SetupScreen() {
             ) : null}
             <View style={styles.dropdownsRow}>
               {/* State dropdown */}
-              <Pressable
+              <AnimatedPressable
                 onPress={() => setShowStatePicker(true)}
                 style={[
                   styles.stateDropdown,
-                  { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
+                  { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong },
                 ]}
               >
                 <ThemedText
@@ -242,14 +261,14 @@ export default function SetupScreen() {
                 <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 10 }}>
                   ▼
                 </ThemedText>
-              </Pressable>
+              </AnimatedPressable>
 
               {/* Hand unit dropdown */}
-              <Pressable
+              <AnimatedPressable
                 onPress={() => setShowHandUnitPicker(true)}
                 style={[
                   styles.stateDropdown,
-                  { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
+                  { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong },
                 ]}
               >
                 <ThemedText
@@ -266,7 +285,7 @@ export default function SetupScreen() {
                 <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 10 }}>
                   ▼
                 </ThemedText>
-              </Pressable>
+              </AnimatedPressable>
             </View>
 
             {selectedHandUnit === 'Custom' && (
@@ -275,12 +294,22 @@ export default function SetupScreen() {
                   Sq ft per Dhur
                 </ThemedText>
                 <TextInput
-                  style={[styles.customInput, { backgroundColor: theme.backgroundElement, color: theme.text, borderColor: '#000000ff' }]}
+                  style={[
+                    styles.customInput,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      color: theme.text,
+                      borderColor: isInputFocused ? theme.primary : theme.borderStrong,
+                      borderWidth: isInputFocused ? 1.5 : 1,
+                    }
+                  ]}
                   value={customDhurSqFt}
                   onChangeText={setCustomDhurSqFt}
                   placeholder="e.g. 300.00"
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="decimal-pad"
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
                 />
               </View>
             )}
@@ -301,12 +330,12 @@ export default function SetupScreen() {
                 style={[styles.modalContent, { backgroundColor: theme.background }]}
                 onPress={() => { }}
               >
-                <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                <View style={[styles.modalHeader, { borderBottomColor: theme.borderStrong }]}>
                   <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
                     Select State
                   </ThemedText>
                   <Pressable onPress={() => setShowStatePicker(false)}>
-                    <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                    <ThemedText type="small" style={{ color: theme.textLink, fontWeight: '700', fontSize: 15 }}>
                       Done
                     </ThemedText>
                   </Pressable>
@@ -323,20 +352,20 @@ export default function SetupScreen() {
                         }}
                         style={[
                           styles.stateRow,
-                          isSelected && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
+                          isSelected && { backgroundColor: theme.backgroundSelected },
                         ]}
                       >
                         <ThemedText
                           type="default"
                           style={{
-                            color: isSelected ? '#3c87f7' : theme.text,
+                            color: theme.text,
                             fontWeight: isSelected ? '700' : '400',
                           }}
                         >
                           {state}
                         </ThemedText>
                         {isSelected && (
-                          <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>
+                          <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
                             ✓
                           </ThemedText>
                         )}
@@ -363,12 +392,12 @@ export default function SetupScreen() {
                 style={[styles.modalContent, { backgroundColor: theme.background }]}
                 onPress={() => { }}
               >
-                <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                <View style={[styles.modalHeader, { borderBottomColor: theme.borderStrong }]}>
                   <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
                     Select Local Unit
                   </ThemedText>
                   <Pressable onPress={() => setShowHandUnitPicker(false)}>
-                    <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                    <ThemedText type="small" style={{ color: theme.textLink, fontWeight: '700', fontSize: 15 }}>
                       Done
                     </ThemedText>
                   </Pressable>
@@ -385,20 +414,20 @@ export default function SetupScreen() {
                         }}
                         style={[
                           styles.stateRow,
-                          isSelected && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
+                          isSelected && { backgroundColor: theme.backgroundSelected },
                         ]}
                       >
                         <ThemedText
                           type="default"
                           style={{
-                            color: isSelected ? '#3c87f7' : theme.text,
+                            color: theme.text,
                             fontWeight: isSelected ? '700' : '400',
                           }}
                         >
                           {unit}
                         </ThemedText>
                         {isSelected && (
-                          <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>
+                          <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
                             ✓
                           </ThemedText>
                         )}
@@ -419,27 +448,33 @@ export default function SetupScreen() {
               {SHAPES.map((s) => {
                 const isSelected = selectedShape === s.type;
                 return (
-                  <Pressable
+                  <AnimatedPressable
                     key={s.type}
                     onPress={() => setSelectedShape(s.type)}
                     style={[
                       styles.shapeCard,
                       {
-                        backgroundColor: isSelected ? '#3c87f7' : theme.backgroundElement,
-                        borderColor: isSelected ? '#3c87f7' : theme.backgroundSelected,
+                        backgroundColor: isSelected ? theme.backgroundSelected : theme.backgroundElement,
+                        borderColor: isSelected ? theme.primary : theme.borderStrong,
+                        borderWidth: isSelected ? 1.5 : 1,
                       },
                     ]}
                   >
                     <View style={styles.shapeIconContainer}>
-                      {s.icon(isSelected ? '#ffffff' : theme.text)}
+                      {s.icon(isSelected ? theme.primary : theme.textSecondary)}
                     </View>
                     <ThemedText
                       type="smallBold"
-                      style={{ color: isSelected ? '#ffffff' : theme.text, textAlign: 'center', fontSize: 11 }}
+                      style={{
+                        color: isSelected ? theme.primary : theme.textSecondary,
+                        textAlign: 'center',
+                        fontSize: 11,
+                        fontWeight: isSelected ? '700' : '500'
+                      }}
                     >
                       {s.label}
                     </ThemedText>
-                  </Pressable>
+                  </AnimatedPressable>
                 );
               })}
             </View>
@@ -447,24 +482,24 @@ export default function SetupScreen() {
         </ScrollView>
 
         {/* Sticky bottom button */}
-        <View style={[styles.bottomBar, { backgroundColor: theme.background, borderTopColor: theme.backgroundSelected }]}>
+        <View style={[styles.bottomBar, { backgroundColor: theme.background, borderTopColor: theme.borderStrong }]}>
           {validationError ? (
             <ThemedText type="small" style={styles.errorText}>
               {validationError}
             </ThemedText>
           ) : null}
-          <Pressable
+          <AnimatedPressable
             onPress={handleStart}
             disabled={!isComplete}
             style={[
               styles.startButton,
-              { backgroundColor: isComplete ? '#3c87f7' : 'rgba(60, 135, 247, 0.3)' },
+              { backgroundColor: theme.primary, opacity: isComplete ? 1 : 0.3 },
             ]}
           >
-            <ThemedText type="defaultSemiBold" style={styles.startButtonText}>
+            <ThemedText type="defaultSemiBold" style={[styles.startButtonText, { color: theme.onPrimary }]}>
               Start Calculating
             </ThemedText>
-          </Pressable>
+          </AnimatedPressable>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -480,7 +515,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.three,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
@@ -490,9 +525,12 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
     alignItems: 'center',
+    marginVertical: Spacing.two,
   },
   headerTitle: {
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -500,27 +538,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   section: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   optionsRow: {
     flexDirection: 'row',
-    gap: Spacing.two,
-    justifyContent: 'center',
+    padding: 4,
+    borderRadius: 24,
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
   },
   optionButton: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   optionText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   dropdownsRow: {
     flexDirection: 'row',
@@ -530,16 +575,13 @@ const styles = StyleSheet.create({
   dhurPreview: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#083374ff',
     textAlign: 'center',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-    backgroundColor: 'rgba(60, 135, 247, 0.08)',
-    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 12,
     overflow: 'hidden',
     alignSelf: 'center',
     borderWidth: 1,
-    borderColor: '#000000',
   },
   stateDropdown: {
     flex: 1,
@@ -548,8 +590,8 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 48,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   customInputRow: {
     flexDirection: 'row',
@@ -563,21 +605,21 @@ const styles = StyleSheet.create({
   },
   customInput: {
     flex: 1,
-    height: 42,
-    borderWidth: 1.5,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    fontSize: 16,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     maxHeight: '70%',
-    borderTopLeftRadius: Spacing.four,
-    borderTopRightRadius: Spacing.four,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingBottom: Spacing.five,
   },
   modalHeader: {
@@ -601,25 +643,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.one,
-    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 8,
   },
   shapesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    gap: 12,
     justifyContent: 'center',
     paddingBottom: Spacing.two,
   },
   shapeCard: {
-    width: 90,
-    height: 88,
-    padding: Spacing.one,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
+    width: 104,
+    height: 104,
+    padding: Spacing.two,
+    borderRadius: 16,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
   shapeIconContainer: {
     justifyContent: 'center',
@@ -630,7 +672,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderTopWidth: 1,
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
   errorText: {
     color: '#ff4d4f',
@@ -640,12 +682,12 @@ const styles = StyleSheet.create({
   },
   startButton: {
     paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 12,
     alignItems: 'center',
   },
   startButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   },
 });
+

@@ -8,13 +8,14 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  useColorScheme,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
-import { Colors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { ThemedText } from './themed-text';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -95,13 +96,15 @@ const iconStyles = StyleSheet.create({
 
 // ─── Drawer Main Component ────────────────────────────────────────────────────
 
+/* eslint-disable react-hooks/refs */
 export default function AppDrawer({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const isWideScreen = width >= 768;
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' || !scheme ? 'light' : scheme];
+  const theme = useTheme();
+  const colors = theme;
+  const isDark = theme.background === '#0d0e12';
   const insets = useSafeAreaInsets();
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -114,17 +117,20 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Refs for PanResponder closures (avoid stale closures) ────────────────
-
   const isOpenRef = useRef(false);
   const isWideScreenRef = useRef(false);
-  isOpenRef.current = isOpen;
-  isWideScreenRef.current = isWideScreen;
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    isWideScreenRef.current = isWideScreen;
+  }, [isOpen, isWideScreen]);
 
   // ── Open / Close Handlers ────────────────────────────────────────────────
 
   const animateOpen = useCallback(() => {
-    setShowBackdrop(true);
+    requestAnimationFrame(() => {
+      setShowBackdrop(true);
+    });
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: 0,
@@ -180,7 +186,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
 
   // ── PanResponder: left-edge swipe to open ────────────────────────────────
 
-  const edgePanResponder = useRef(
+  const [edgePanResponder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: (evt) => {
         if (isOpenRef.current || isWideScreenRef.current) return false;
@@ -219,12 +225,12 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
         fadeAnim.setValue(0);
         setShowBackdrop(false);
       },
-    }),
-  ).current;
+    })
+  );
 
   // ── PanResponder: drag the open drawer to close ──────────────────────────
 
-  const drawerPanResponder = useRef(
+  const [drawerPanResponder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gs) => {
@@ -238,7 +244,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
       onPanResponderMove: (_, gs) => {
         const newX = Math.min(0, Math.max(-DRAWER_WIDTH, gs.dx));
         slideAnim.setValue(newX);
-        fadeAnim.setValue(1 - Math.abs(newX) / DRAWER_WIDTH * 0.6);
+        fadeAnim.setValue(1 - (Math.abs(newX) / DRAWER_WIDTH) * 0.6);
       },
       onPanResponderRelease: (_, gs) => {
         if (gs.dx < -OPEN_THRESHOLD || gs.vx < -0.5) {
@@ -265,8 +271,8 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
           fadeAnim.setValue(1);
         }
       },
-    }),
-  ).current;
+    })
+  );
 
   // ── Navigation ───────────────────────────────────────────────────────────
 
@@ -293,10 +299,33 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
           },
         ]}
       >
+        {/* Subtle background wash inside the header */}
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+          <Svg width="100%" height={160} style={{ position: 'absolute', top: 0, left: 0 }}>
+            <Defs>
+              <LinearGradient id="drawer-header-wash" x1="0%" y1="0%" x2="0%" y2="100%">
+                <Stop offset="0%" stopColor={isDark ? '#151624' : '#e0efff'} stopOpacity="0.4" />
+                <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill="url(#drawer-header-wash)" />
+          </Svg>
+        </View>
+
         <View style={styles.drawerHeaderRow}>
           <View style={styles.drawerHeaderText}>
+            {/* Elegant Brand Icon */}
+            <Svg width="36" height="36" viewBox="0 0 40 40" style={{ marginBottom: 8 }}>
+              <Rect width="40" height="40" rx="12" fill={colors.primary} />
+              {/* Land grid representation */}
+              <Path d="M 10 20 L 30 20 M 20 10 L 20 30" stroke={isDark ? '#0d0e12' : '#ffffff'} strokeWidth="1.5" opacity="0.4" />
+              <Rect x="13" y="13" width="14" height="14" rx="3" stroke={isDark ? '#0d0e12' : '#ffffff'} strokeWidth="2" fill="none" />
+            </Svg>
             <ThemedText type="subtitle" style={styles.brandTitle}>
               Bhu Maapi
+            </ThemedText>
+            <ThemedText type="small" style={{ color: colors.textSecondary, fontSize: 11 }}>
+              Premium Land Suite
             </ThemedText>
           </View>
           {!isWideScreen && (
@@ -315,13 +344,13 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
         </View>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.borderStrong }]} />
 
       {/* Menu Items */}
       <View style={styles.menuContainer}>
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.path;
-          const iconColor = isActive ? '#3c87f7' : colors.textSecondary;
+          const iconColor = isActive ? colors.primary : colors.textSecondary;
           return (
             <Pressable
               key={item.name}
@@ -331,8 +360,8 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
                 isActive && [
                   styles.menuItemActive,
                   {
-                    backgroundColor: colors.backgroundSelected,
-                    borderColor: '#3c87f7',
+                    backgroundColor: isDark ? 'rgba(88, 156, 255, 0.08)' : 'rgba(11, 87, 208, 0.06)',
+                    borderColor: colors.primary,
                   },
                 ],
                 pressed && styles.pressed,
@@ -345,19 +374,22 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
               <View style={styles.menuItemContent}>
                 <Image
                   source={item.iconSource}
-                  style={{ width: 20, height: 20, tintColor: iconColor }}
+                  style={{ width: 18, height: 18, tintColor: iconColor }}
                   resizeMode="contain"
                 />
                 <ThemedText
                   type={isActive ? 'defaultSemiBold' : 'default'}
                   style={[
                     styles.menuItemLabel,
-                    { color: isActive ? colors.text : colors.textSecondary },
+                    { color: isActive ? colors.primary : colors.textSecondary, fontWeight: isActive ? '700' : '500' },
                   ]}
                 >
                   {item.label}
                 </ThemedText>
               </View>
+              {isActive && (
+                <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} />
+              )}
             </Pressable>
           );
         })}
@@ -388,7 +420,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
             styles.sidebar,
             {
               backgroundColor: colors.backgroundElement,
-              borderRightColor: colors.backgroundSelected,
+              borderRightColor: colors.borderStrong,
             },
           ]}
         >
@@ -414,7 +446,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
             styles.mobileHeader,
             {
               backgroundColor: colors.backgroundElement,
-              borderBottomColor: colors.backgroundSelected,
+              borderBottomColor: colors.borderStrong,
               paddingTop: Math.max(insets.top, Spacing.two),
             },
           ]}
@@ -472,7 +504,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
           {
             backgroundColor: colors.backgroundElement,
             transform: [{ translateX: slideAnim }],
-            borderRightColor: colors.backgroundSelected,
+            borderRightColor: colors.borderStrong,
           },
         ]}
         accessible
@@ -609,6 +641,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   menuItemActive: {
     borderWidth: 1.5,
@@ -620,6 +655,11 @@ const styles = StyleSheet.create({
   },
   menuItemLabel: {
     fontSize: 15,
+  },
+  activeIndicator: {
+    width: 3,
+    height: 16,
+    borderRadius: 1.5,
   },
   drawerFooter: {
     paddingHorizontal: Spacing.four,

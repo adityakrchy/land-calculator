@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginTop: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 12,
     marginLeft: Spacing.four,
     padding: Spacing.four,
   },

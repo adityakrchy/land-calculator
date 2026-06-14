@@ -52,10 +52,17 @@ export default function TabTwoScreen() {
 
           <ExternalLink href="https://docs.expo.dev" asChild>
             <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
+              <ThemedView
+                style={[
+                  styles.linkButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.borderStrong,
+                  },
+                ]}>
+                <ThemedText type="linkPrimary">Expo documentation</ThemedText>
                 <SymbolView
-                  tintColor={theme.text}
+                  tintColor={theme.textLink}
                   name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
                   size={12}
                 />
@@ -159,7 +166,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
+    borderRadius: 8,
+    borderWidth: 1,
     justifyContent: 'center',
     gap: Spacing.one,
     alignItems: 'center',

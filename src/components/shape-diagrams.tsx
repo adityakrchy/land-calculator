@@ -96,8 +96,8 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
   const getHighlightStyle = (fields: string[]) => {
     const isActive = activeField && fields.includes(activeField);
     return {
-      borderColor: isActive ? '#3c87f7' : theme.textSecondary,
-      color: isActive ? '#3c87f7' : theme.textSecondary,
+      borderColor: isActive ? theme.primary : theme.textSecondary,
+      color: isActive ? theme.primary : theme.textSecondary,
       fontWeight: isActive ? '700' : '500',
     };
   };
@@ -283,18 +283,18 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             {renderDynamicLine(vA, vC, sideCHighlight, 'sideC')}
 
             {/* Labels for sides */}
-            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? theme.primary : theme.backgroundElement, borderColor: isSideAActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? theme.onPrimary : theme.text }]}>
                 {labelABText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? theme.primary : theme.backgroundElement, borderColor: isSideBActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? theme.onPrimary : theme.text }]}>
                 {labelBCText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? theme.primary : theme.backgroundElement, borderColor: isSideCActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? theme.onPrimary : theme.text }]}>
                 {labelCAText}
               </RNText>
             </View>
@@ -314,17 +314,17 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             {isValidTriangle && (
               <>
                 <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠A {angleA.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠B {angleB.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠C {angleC.toFixed(1)}°
                   </RNText>
                 </View>
@@ -507,18 +507,18 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             {renderDynamicLine(vA, vC, sideCHighlight, 'sideC')}
 
             {/* Labels for sides */}
-            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? theme.primary : theme.backgroundElement, borderColor: isSideAActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? theme.onPrimary : theme.text }]}>
                 {labelABText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? theme.primary : theme.backgroundElement, borderColor: isSideBActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? theme.onPrimary : theme.text }]}>
                 {labelBCText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelCA_pos.x - 25, top: labelCA_pos.y - 10, width: 50, backgroundColor: isSideCActive ? theme.primary : theme.backgroundElement, borderColor: isSideCActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? theme.onPrimary : theme.text }]}>
                 {labelCAText}
               </RNText>
             </View>
@@ -538,17 +538,17 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             {isValidTriangle && (
               <>
                 <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠A {angleA.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠B {angleB.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠C {angleC.toFixed(1)}°
                   </RNText>
                 </View>
@@ -859,7 +859,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                     ? `M ${vA.x} ${vA.y} L ${vC.x} ${vC.y}`
                     : `M ${vB.x} ${vB.y} L ${vD.x} ${vD.y}`
                   }
-                  stroke={activeField === 'diagonal' ? '#3c87f7' : 'rgba(60, 135, 247, 0.5)'}
+                  stroke={activeField === 'diagonal' ? theme.primary : `${theme.primary}80`}
                   strokeWidth={activeField === 'diagonal' ? 2.5 : 1.5}
                   strokeDasharray="6,4"
                   fill="none"
@@ -868,23 +868,23 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             )}
 
             {/* Labels for sides */}
-            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? theme.primary : theme.backgroundElement, borderColor: isSideAActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideAActive ? theme.onPrimary : theme.text }]}>
                 {labelABText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideBActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelBC_pos.x - 25, top: labelBC_pos.y - 10, width: 50, backgroundColor: isSideBActive ? theme.primary : theme.backgroundElement, borderColor: isSideBActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideBActive ? theme.onPrimary : theme.text }]}>
                 {labelBCText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelCD_pos.x - 25, top: labelCD_pos.y - 10, width: 50, backgroundColor: isSideCActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideCActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelCD_pos.x - 25, top: labelCD_pos.y - 10, width: 50, backgroundColor: isSideCActive ? theme.primary : theme.backgroundElement, borderColor: isSideCActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideCActive ? theme.onPrimary : theme.text }]}>
                 {labelCDText}
               </RNText>
             </View>
-            <View style={[styles.labelBox, { left: labelDA_pos.x - 25, top: labelDA_pos.y - 10, width: 50, backgroundColor: isSideDActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideDActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
-              <RNText style={[styles.labelBoxText, { color: isSideDActive ? '#ffffff' : theme.text }]}>
+            <View style={[styles.labelBox, { left: labelDA_pos.x - 25, top: labelDA_pos.y - 10, width: 50, backgroundColor: isSideDActive ? theme.primary : theme.backgroundElement, borderColor: isSideDActive ? theme.primary : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
+              <RNText style={[styles.labelBoxText, { color: isSideDActive ? theme.onPrimary : theme.text }]}>
                 {labelDAText}
               </RNText>
             </View>
@@ -909,11 +909,11 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                   left: labelX - 25,
                   top: labelY - 10,
                   width: 50,
-                  backgroundColor: activeField === 'diagonal' ? '#3c87f7' : theme.backgroundElement,
-                  borderColor: activeField === 'diagonal' ? '#3c87f7' : 'rgba(60,135,247,0.3)',
+                  backgroundColor: activeField === 'diagonal' ? theme.primary : theme.backgroundElement,
+                  borderColor: activeField === 'diagonal' ? theme.primary : `${theme.primary}4d`,
                 }]} pointerEvents="none">
                   <RNText style={[styles.labelBoxText, {
-                    color: activeField === 'diagonal' ? '#ffffff' : '#3c87f7',
+                    color: activeField === 'diagonal' ? theme.onPrimary : theme.primary,
                     fontSize: 10,
                   }]}>
                     {parseFloat(diagonal).toFixed(1)}
@@ -940,22 +940,22 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
             {isValidQuad && (
               <>
                 <View style={[styles.angleLabelBox, { left: angleA_pos.x - 30, top: angleA_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideAActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠A {angleA.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleB_pos.x - 30, top: angleB_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideBActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠B {angleB.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleC_pos.x - 30, top: angleC_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideCActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠C {angleC.toFixed(1)}°
                   </RNText>
                 </View>
                 <View style={[styles.angleLabelBox, { left: angleD_pos.x - 30, top: angleD_pos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isSideDActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isSideDActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠D {angleD.toFixed(1)}°
                   </RNText>
                 </View>
@@ -1059,7 +1059,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                     top: midPoint(p, next).y - 1,
                     width: Math.sqrt(Math.pow(next.x - p.x, 2) + Math.pow(next.y - p.y, 2)),
                     height: 2,
-                    backgroundColor: isActive ? '#3c87f7' : theme.textSecondary,
+                    backgroundColor: isActive ? theme.primary : theme.textSecondary,
                     transform: [{ rotate: `${Math.atan2(next.y - p.y, next.x - p.x) * 180 / Math.PI}deg` }],
                   }} />
                   {/* Side label at midpoint pushed outward */}
@@ -1070,10 +1070,10 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                     return (
                       <View style={[styles.labelBox, {
                         left: labelPos.x - 25, top: labelPos.y - 10, width: 50,
-                        backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
-                        borderColor: isActive ? '#3c87f7' : 'rgba(120,120,120,0.2)',
+                        backgroundColor: isActive ? theme.primary : theme.backgroundElement,
+                        borderColor: isActive ? theme.primary : 'rgba(120,120,120,0.2)',
                       }]} pointerEvents="none">
-                        <RNText style={[styles.labelBoxText, { color: isActive ? '#ffffff' : theme.text }]}>
+                        <RNText style={[styles.labelBoxText, { color: isActive ? theme.onPrimary : theme.text }]}>
                           {labelText}
                         </RNText>
                       </View>
@@ -1100,7 +1100,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                       <Path
                         key={`diag-${diagKey}`}
                         d={`M ${from.x} ${from.y} L ${to.x} ${to.y}`}
-                        stroke={isActive ? '#3c87f7' : 'rgba(60, 135, 247, 0.4)'}
+                        stroke={isActive ? theme.primary : `${theme.primary}66`}
                         strokeWidth={isActive ? 2 : 1}
                         strokeDasharray="6,4"
                         fill="none"
@@ -1131,11 +1131,11 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                   return (
                     <View key={`dlbl-${diagKey}`} style={[styles.labelBox, {
                       left: labelPos.x - 25, top: labelPos.y - 10, width: 50,
-                      backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
-                      borderColor: isActive ? '#3c87f7' : 'rgba(60,135,247,0.3)',
+                      backgroundColor: isActive ? theme.primary : theme.backgroundElement,
+                      borderColor: isActive ? theme.primary : `${theme.primary}4d`,
                     }]} pointerEvents="none">
                       <RNText style={[styles.labelBoxText, {
-                        color: isActive ? '#ffffff' : '#3c87f7',
+                        color: isActive ? theme.onPrimary : theme.primary,
                         fontSize: 10,
                       }]}>
                         {displayVal}
@@ -1155,7 +1155,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                   const isAngleActive = activeField === `polySide${i}` || activeField === `polySide${(i - 1 + N) % N}`;
                   return (
                     <React.Fragment key={`arc-${i}`}>
-                      {renderArc(p, prev, next, 14, isAngleActive ? '#3c87f7' : 'rgba(120,120,120,0.4)')}
+                      {renderArc(p, prev, next, 14, isAngleActive ? theme.primary : 'rgba(120,120,120,0.4)')}
                     </React.Fragment>
                   );
                 })}
@@ -1185,7 +1185,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
               const isAngleActive = activeField === `polySide${i}` || activeField === `polySide${(i - 1 + N) % N}`;
               return (
                 <View key={`al-${i}`} style={[styles.angleLabelBox, { left: anglePos.x - 30, top: anglePos.y - 8 }]} pointerEvents="none">
-                  <RNText style={[styles.angleLabelText, { color: isAngleActive ? '#3c87f7' : 'rgba(120,120,120,0.7)' }]}>
+                  <RNText style={[styles.angleLabelText, { color: isAngleActive ? theme.primary : 'rgba(120,120,120,0.7)' }]}>
                     ∠{String.fromCharCode(65 + i)} {angles[i].toFixed(1)}°
                   </RNText>
                 </View>
@@ -1213,7 +1213,7 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                 cx={cx}
                 cy={cy}
                 r={r}
-                stroke={isActive ? '#3c87f7' : theme.textSecondary}
+                stroke={isActive ? theme.primary : theme.textSecondary}
                 strokeWidth={isActive ? 2.5 : 2}
                 fill="none"
               />
@@ -1232,11 +1232,11 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, 
                 left: cx - 25,
                 top: cy + 8,
                 width: 50,
-                backgroundColor: isActive ? '#3c87f7' : theme.backgroundElement,
-                borderColor: isActive ? '#3c87f7' : 'rgba(128,128,128,0.2)',
+                backgroundColor: isActive ? theme.primary : theme.backgroundElement,
+                borderColor: isActive ? theme.primary : 'rgba(128,128,128,0.2)',
               }]} pointerEvents="none">
                 <RNText style={[styles.labelBoxText, {
-                  color: isActive ? '#ffffff' : theme.text,
+                  color: isActive ? theme.onPrimary : theme.text,
                   fontSize: 10,
                 }]}>
                   {diameter.toFixed(1)}

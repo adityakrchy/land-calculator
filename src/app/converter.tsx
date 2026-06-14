@@ -1,7 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -9,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -22,11 +22,6 @@ const UNIT_LABELS: Record<Unit, string> = {
   kadi: 'Kadi',
 };
 
-const UNIT_ABBR: Record<Unit, string> = {
-  ft: 'ft',
-  m: 'm',
-  kadi: 'kadi',
-};
 
 const ALL_UNITS: Unit[] = ['ft', 'm', 'kadi'];
 
@@ -46,6 +41,7 @@ export default function ConverterScreen() {
   const theme = useTheme();
   const [value, setValue] = useState('');
   const [sourceUnit, setSourceUnit] = useState<Unit>('ft');
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const numVal = parseFloat(value);
   const isValid = !isNaN(numVal) && numVal > 0;
@@ -75,29 +71,29 @@ export default function ConverterScreen() {
           </View>
 
           {/* Source unit picker */}
-          <View style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardTitle}>
+          <View style={[styles.card, { borderColor: theme.borderStrong }]}>
+            <ThemedText type="smallBold" style={[styles.cardTitle, { color: theme.textSecondary, alignSelf: 'center' }]}>
               Select Unit
             </ThemedText>
-            <View style={styles.unitRow}>
+            <View style={[styles.unitRow, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong }]}>
               {ALL_UNITS.map((u) => (
-                <Pressable
+                <AnimatedPressable
                   key={u}
                   onPress={() => setSourceUnit(u)}
                   style={[
                     styles.unitBtn,
-                    sourceUnit === u && { backgroundColor: '#3c87f7' },
+                    sourceUnit === u && { backgroundColor: theme.primary },
                   ]}
                 >
                   <ThemedText
                     type="smallBold"
                     style={{
-                      color: sourceUnit === u ? '#ffffff' : theme.textSecondary,
+                      color: sourceUnit === u ? theme.onPrimary : theme.textSecondary,
                     }}
                   >
                     {UNIT_LABELS[u]}
                   </ThemedText>
-                </Pressable>
+                </AnimatedPressable>
               ))}
             </View>
 
@@ -108,7 +104,8 @@ export default function ConverterScreen() {
                 {
                   backgroundColor: theme.backgroundElement,
                   color: theme.text,
-                  borderColor: theme.backgroundSelected,
+                  borderColor: isInputFocused ? theme.primary : theme.borderStrong,
+                  borderWidth: isInputFocused ? 1.5 : 1,
                 },
               ]}
               value={value}
@@ -116,6 +113,8 @@ export default function ConverterScreen() {
               placeholder={`Enter value in ${UNIT_LABELS[sourceUnit].toLowerCase()}`}
               placeholderTextColor={theme.textSecondary}
               keyboardType="decimal-pad"
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
             />
 
             {/* ⇣ icon */}
@@ -124,7 +123,7 @@ export default function ConverterScreen() {
                 <SymbolView
                   name="arrow.down"
                   size={18}
-                  tintColor="#3c87f7"
+                  tintColor={theme.primary}
                 />
               </View>
             )}
@@ -140,8 +139,11 @@ export default function ConverterScreen() {
                     key={u}
                     style={[
                       styles.resultRow,
+                      { borderColor: theme.borderStrong, borderWidth: 1 },
                       u === sourceUnit && {
-                        backgroundColor: 'rgba(60, 135, 247, 0.06)',
+                        backgroundColor: theme.backgroundSelected,
+                        borderColor: theme.primary,
+                        borderWidth: 1.5,
                       },
                     ]}
                   >
@@ -153,10 +155,10 @@ export default function ConverterScreen() {
                         {UNIT_LABELS[u]}
                       </ThemedText>
                       {u === sourceUnit && (
-                        <View style={styles.sourceBadge}>
+                        <View style={[styles.sourceBadge, { backgroundColor: theme.primary }]}>
                           <ThemedText
                             type="code"
-                            style={styles.sourceBadgeText}
+                            style={[styles.sourceBadgeText, { color: theme.onPrimary }]}
                           >
                             source
                           </ThemedText>
@@ -168,7 +170,7 @@ export default function ConverterScreen() {
                       style={[
                         styles.resultValue,
                         {
-                          color: isValid ? '#3c87f7' : theme.textSecondary,
+                          color: isValid ? theme.text : theme.textSecondary,
                         },
                       ]}
                     >
@@ -262,7 +264,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   badge: {
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#171717',
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Spacing.two,
@@ -274,36 +276,39 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: Spacing.four,
-    borderRadius: Spacing.four,
-    borderWidth: 1.5,
-    borderColor: 'rgba(128,128,128,0.15)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.12)',
     gap: Spacing.three,
   },
   cardTitle: {
-    fontSize: 14,
-    opacity: 0.8,
+    fontSize: 12,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   unitRow: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    padding: 4,
+    borderRadius: 24,
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
   },
   unitBtn: {
     flex: 1,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    paddingVertical: 10,
+    borderRadius: 20,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    justifyContent: 'center',
   },
   input: {
-    height: 48,
-    borderWidth: 1.5,
-    borderRadius: Spacing.two,
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: Spacing.three,
-    fontSize: 18,
-    borderColor: 'black',
+    fontSize: 16,
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -312,7 +317,7 @@ const styles = StyleSheet.create({
     marginVertical: -Spacing.one,
   },
   resultsSection: {
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
   resultRow: {
     flexDirection: 'row',
@@ -320,7 +325,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
   },
   resultLabelRow: {
     flexDirection: 'row',
@@ -328,7 +333,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   sourceBadge: {
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#171717',
     paddingHorizontal: Spacing.two,
     paddingVertical: 1,
     borderRadius: Spacing.one,
@@ -353,6 +358,5 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(128,128,128,0.08)',
   },
   refValue: {
-    color: '#3c87f7',
   },
 });

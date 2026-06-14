@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -9,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -93,31 +93,31 @@ export default function PlotScreen() {
 
           {/* Unit Selector */}
           <View style={styles.sectionHeader}>
-            <ThemedText type="smallBold">Select Measurement Unit</ThemedText>
-            <View style={styles.unitSelector}>
+            <ThemedText type="smallBold" style={{ alignSelf: 'center', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 12, opacity: 0.8 }}>Select Measurement Unit</ThemedText>
+            <View style={[styles.unitSelector, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong }]}>
               {UNITS.map(u => (
-                <Pressable
+                <AnimatedPressable
                   key={u}
                   onPress={() => setUnit(u)}
                   style={[
                     styles.unitButton,
-                    unit === u && { backgroundColor: '#3c87f7' },
+                    unit === u && { backgroundColor: theme.primary },
                   ]}
                 >
                   <ThemedText
                     type="smallBold"
-                    style={{ color: unit === u ? '#ffffff' : theme.textSecondary }}
+                    style={{ color: unit === u ? theme.onPrimary : theme.textSecondary }}
                   >
                     {u}
                   </ThemedText>
-                </Pressable>
+                </AnimatedPressable>
               ))}
             </View>
           </View>
 
           {/* Plot Definition Card */}
-          <View style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardTitle}>
+          <View style={[styles.card, { borderColor: theme.borderStrong }]}>
+            <ThemedText type="smallBold" style={[styles.cardTitle, { color: theme.textSecondary }]}>
               Plot Definition
             </ThemedText>
             <View style={styles.sideCountRow}>
@@ -127,47 +127,47 @@ export default function PlotScreen() {
                   Min 3, Max 20 sides
                 </ThemedText>
               </View>
-              <View style={styles.counterContainer}>
-                <Pressable
+              <View style={[styles.counterContainer, { borderColor: theme.borderStrong, borderWidth: 1 }]}>
+                <AnimatedPressable
                   onPress={handleDecrement}
                   style={[styles.counterBtn, { backgroundColor: theme.backgroundSelected }]}
                   disabled={sideCount <= 3}
                 >
                   <SymbolView name="minus" size={16} tintColor={theme.text} />
-                </Pressable>
-                <View style={styles.counterValueContainer}>
+                </AnimatedPressable>
+                <View style={[styles.counterValueContainer, { backgroundColor: theme.backgroundElement }]}>
                   <ThemedText type="subtitle" style={styles.counterValue}>
                     {sideCount}
                   </ThemedText>
                 </View>
-                <Pressable
+                <AnimatedPressable
                   onPress={handleIncrement}
                   style={[styles.counterBtn, { backgroundColor: theme.backgroundSelected }]}
                   disabled={sideCount >= 20}
                 >
                   <SymbolView name="plus" size={16} tintColor={theme.text} />
-                </Pressable>
+                </AnimatedPressable>
               </View>
             </View>
           </View>
 
           {/* Side Lengths Card */}
-          <View style={styles.card}>
+          <View style={[styles.card, { borderColor: theme.borderStrong }]}>
             <View style={styles.formHeaderRow}>
-              <ThemedText type="smallBold" style={styles.cardTitle}>
+              <ThemedText type="smallBold" style={[styles.cardTitle, { color: theme.textSecondary }]}>
                 Side Lengths
               </ThemedText>
-              <Pressable onPress={reset} style={styles.clearButton}>
-                <ThemedText type="small" style={{ color: '#ff4d4f' }}>
+              <AnimatedPressable onPress={reset} style={styles.clearButton}>
+                <ThemedText type="small" style={{ color: '#ff4d4f', fontWeight: '600' }}>
                   Reset Inputs
                 </ThemedText>
-              </Pressable>
+              </AnimatedPressable>
             </View>
 
             <View style={styles.inputsGrid}>
               {Object.keys(sideLengths).map((key) => (
                 <View key={key} style={styles.inputContainer}>
-                  <ThemedText type="smallBold" style={styles.inputLabel}>
+                  <ThemedText type="smallBold" style={{ color: theme.textSecondary, fontSize: 12 }}>
                     Side {key}
                   </ThemedText>
                   <View style={styles.textInputWrapper}>
@@ -175,9 +175,10 @@ export default function PlotScreen() {
                       style={[
                         styles.textInput,
                         {
-                          backgroundColor: theme.backgroundElement,
+                          backgroundColor: activeField === key ? theme.backgroundSelected : theme.backgroundElement,
                           color: theme.text,
-                          borderColor: activeField === key ? '#3c87f7' : theme.backgroundSelected,
+                          borderColor: activeField === key ? theme.primary : theme.borderStrong,
+                          borderWidth: activeField === key ? 1.5 : 1,
                         },
                       ]}
                       value={sideLengths[key]}
@@ -198,23 +199,23 @@ export default function PlotScreen() {
               ))}
             </View>
 
-            <Pressable
+            <AnimatedPressable
               onPress={generateGeometry}
-              style={({ pressed }) => [
+              style={[
                 styles.generateBtn,
-                pressed && { opacity: 0.85 },
+                { backgroundColor: theme.primary },
               ]}
             >
-              <ThemedText type="defaultSemiBold" style={styles.generateBtnText}>
+              <ThemedText type="defaultSemiBold" style={[styles.generateBtnText, { color: theme.onPrimary }]}>
                 Generate Geometry
               </ThemedText>
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           {/* Geometry Result Card */}
           {hasCalculated && (
-            <View style={[styles.card, { borderColor: isValid ? '#3c87f7' : '#ff4d4f', borderWidth: 1 }]}>
-              <ThemedText type="smallBold" style={[styles.cardTitle, { color: isValid ? '#3c87f7' : '#ff4d4f' }]}>
+            <View style={[styles.card, { borderColor: isValid ? theme.primary : theme.error, borderWidth: 1.5 }]}>
+              <ThemedText type="smallBold" style={[styles.cardTitle, { color: isValid ? theme.primary : theme.error }]}>
                 {isValid ? 'Geometry Calculation' : 'Validation Error'}
               </ThemedText>
 
@@ -232,7 +233,7 @@ export default function PlotScreen() {
 
                   {/* Summary Rows */}
                   <View style={styles.summaryGrid}>
-                    <View style={[styles.summaryCard, { backgroundColor: 'rgba(60, 135, 247, 0.05)' }]}>
+                    <View style={[styles.summaryCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong }]}>
                       <ThemedText type="small" themeColor="textSecondary">
                         Total Area
                       </ThemedText>
@@ -240,13 +241,13 @@ export default function PlotScreen() {
                         {area.toFixed(2)} {unit}²
                       </ThemedText>
                       {unit !== 'ft' && (
-                        <ThemedText type="small" style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+                        <ThemedText type="small" style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>
                           {convertedAreaSqFt().toFixed(2)} sq ft
                         </ThemedText>
                       )}
                     </View>
 
-                    <View style={[styles.summaryCard, { backgroundColor: 'rgba(60, 135, 247, 0.05)' }]}>
+                    <View style={[styles.summaryCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderStrong }]}>
                       <ThemedText type="small" themeColor="textSecondary">
                         Perimeter
                       </ThemedText>
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   badge: {
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#171717',
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Spacing.two,
@@ -335,26 +336,33 @@ const styles = StyleSheet.create({
   },
   unitSelector: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    padding: 4,
+    borderRadius: 24,
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
   },
   unitButton: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     backgroundColor: 'transparent',
-    borderRadius: Spacing.three,
+    borderRadius: 16,
     padding: Spacing.four,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
+    borderColor: 'rgba(128,128,128,0.12)',
     gap: Spacing.three,
   },
   cardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   sideCountRow: {
     flexDirection: 'row',
@@ -364,17 +372,19 @@ const styles = StyleSheet.create({
   counterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: Spacing.two,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   counterBtn: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   counterValueContainer: {
     width: 44,
+    height: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   counterValue: {
@@ -406,26 +416,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textInput: {
-    height: 40,
-    borderWidth: 1.5,
-    borderRadius: Spacing.two,
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: Spacing.three,
-    fontSize: 14,
+    fontSize: 15,
   },
   inputUnit: {
     position: 'absolute',
-    right: 12,
+    right: 14,
     pointerEvents: 'none',
   },
   generateBtn: {
-    backgroundColor: '#3c87f7',
     paddingVertical: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: Spacing.two,
   },
   generateBtnText: {
-    color: '#ffffff',
+    fontWeight: '700',
   },
   resultsContainer: {
     gap: Spacing.four,
@@ -437,9 +446,9 @@ const styles = StyleSheet.create({
   summaryCard: {
     flex: 1,
     padding: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(60, 135, 247, 0.1)',
+    borderColor: 'rgba(128,128,128,0.12)',
   },
   summaryValue: {
     marginTop: Spacing.one,
@@ -458,7 +467,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 12,
   },
   errorContainer: {
     flexDirection: 'row',

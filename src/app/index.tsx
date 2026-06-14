@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/immutability */
+/* eslint-disable react-hooks/exhaustive-deps */
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,7 +14,9 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { ShapeDiagram } from '@/components/shape-diagrams';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -92,6 +97,7 @@ function generatePolygonDiagonals(N: number): { key: string; from: number; to: n
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
   const theme = useTheme();
+  const isDark = theme.background === '#0d0e12';
   const [selectedShape, setSelectedShape] = useState<ShapeType>('triangle');
   const [unit, setUnit] = useState<string>('m');
   const [handUnit, setHandUnit] = useState<string>('');
@@ -599,22 +605,22 @@ export default function HomeScreen() {
 
     return (
       <View style={styles.conversionsSection}>
-        <View style={styles.conversionsList}>
+        <View style={styles.conversionsGrid}>
           {conversions.map((item, idx) => (
             <View
               key={idx}
               style={[
-                styles.conversionRow,
+                styles.conversionCard,
                 {
-                  backgroundColor: 'rgba(60, 135, 247, 0.04)',
-                  borderColor: 'rgba(60, 135, 247, 0.1)',
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.borderStrong,
                 },
               ]}
             >
-              <ThemedText type="default" style={styles.conversionLabel}>
+              <ThemedText type="small" style={styles.conversionCardLabel}>
                 {item.label}
               </ThemedText>
-              <ThemedText type="defaultSemiBold" style={styles.conversionValue}>
+              <ThemedText type="defaultSemiBold" style={styles.conversionCardValue}>
                 {item.value}
               </ThemedText>
             </View>
@@ -679,7 +685,7 @@ export default function HomeScreen() {
                       {
                         backgroundColor: theme.backgroundElement,
                         color: theme.text,
-                        borderColor: activeField === f.key ? '#3c87f7' : '#000000ff',
+                        borderColor: activeField === f.key ? theme.primary : theme.borderStrong,
                         paddingRight: 28,
                       },
                     ]}
@@ -707,7 +713,7 @@ export default function HomeScreen() {
                     styles.triangleRowAngleBox,
                     {
                       backgroundColor: theme.backgroundElement,
-                      borderColor: activeField === `angle${label}` ? '#3c87f7' : '#000000ff',
+                      borderColor: activeField === `angle${label}` ? theme.primary : theme.borderStrong,
                     },
                   ]}
                 >
@@ -715,7 +721,7 @@ export default function HomeScreen() {
                     type="defaultSemiBold"
                     style={[
                       styles.angleValue,
-                      { color: hasAngles ? '#3c87f7' : theme.textSecondary },
+                      { color: hasAngles ? theme.primary : theme.textSecondary },
                     ]}
                   >
                     {displayVal}
@@ -796,7 +802,7 @@ export default function HomeScreen() {
                         {
                           backgroundColor: theme.backgroundElement,
                           color: theme.text,
-                          borderColor: activeField === f.key ? '#3c87f7' : '#000000ff',
+                          borderColor: activeField === f.key ? theme.primary : theme.borderStrong,
                           paddingRight: 28,
                         },
                       ]}
@@ -819,12 +825,12 @@ export default function HomeScreen() {
                   styles.triangleRowAngleBox,
                   {
                     backgroundColor: theme.backgroundElement,
-                    borderColor: activeField === `angle${label}` ? '#3c87f7' : '#000000ff',
+                    borderColor: activeField === `angle${label}` ? theme.primary : theme.borderStrong,
                   },
                 ]}>
                   <ThemedText
                     type="defaultSemiBold"
-                    style={[styles.angleValue, { color: hasAngles ? '#3c87f7' : theme.textSecondary }]}
+                    style={[styles.angleValue, { color: hasAngles ? theme.primary : theme.textSecondary }]}
                   >
                     {displayVal}
                   </ThemedText>
@@ -908,7 +914,7 @@ export default function HomeScreen() {
                         {
                           backgroundColor: theme.backgroundElement,
                           color: theme.text,
-                          borderColor: activeField === row.sideKey ? '#3c87f7' : '#000000ff',
+                          borderColor: activeField === row.sideKey ? theme.primary : theme.borderStrong,
                           paddingRight: 28,
                         },
                       ]}
@@ -934,12 +940,12 @@ export default function HomeScreen() {
                     styles.triangleRowAngleBox,
                     {
                       backgroundColor: theme.backgroundElement,
-                      borderColor: '#000000ff',
+                      borderColor: theme.borderStrong,
                     },
                   ]}>
                     <ThemedText
                       type="defaultSemiBold"
-                      style={[styles.angleValue, { color: '#3c87f7' }]}
+                      style={[styles.angleValue, { color: theme.primary }]}
                     >
                       {angleDisplay}
                     </ThemedText>
@@ -950,7 +956,7 @@ export default function HomeScreen() {
                     height: 42,
                     borderWidth: 1.5,
                     borderRadius: Spacing.two,
-                    borderColor: activeField === row.angleKey ? '#3c87f7' : '#000000ff',
+                    borderColor: activeField === row.angleKey ? theme.primary : theme.borderStrong,
                     justifyContent: 'center',
                     backgroundColor: theme.backgroundElement,
                   }}>
@@ -1012,7 +1018,7 @@ export default function HomeScreen() {
                       {
                         backgroundColor: theme.backgroundElement,
                         color: theme.text,
-                        borderColor: activeField === row.sideKey ? '#3c87f7' : '#000000ff',
+                        borderColor: activeField === row.sideKey ? theme.primary : theme.borderStrong,
                         paddingRight: 28,
                       },
                     ]}
@@ -1033,13 +1039,13 @@ export default function HomeScreen() {
                     styles.triangleRowAngleBox,
                     {
                       backgroundColor: theme.backgroundElement,
-                      borderColor: activeField === `angle${row.angleLabel}` ? '#3c87f7' : '#000000ff',
+                      borderColor: activeField === `angle${row.angleLabel}` ? theme.primary : theme.borderStrong,
                     },
                   ]}
                 >
                   <ThemedText
                     type="defaultSemiBold"
-                    style={[styles.angleValue, { color: hasComputed ? '#3c87f7' : theme.textSecondary }]}
+                    style={[styles.angleValue, { color: hasComputed ? theme.primary : theme.textSecondary }]}
                   >
                     {displayAngle}
                   </ThemedText>
@@ -1049,12 +1055,12 @@ export default function HomeScreen() {
           })}
 
           {/* Diagonal row — same layout as side rows, dropdown for diagonal selection */}
-          <><View style={[styles.dividerLine, { backgroundColor: theme.backgroundSelected }]} />
+          <><View style={[styles.dividerLine, { backgroundColor: theme.borderStrong }]} />
             <View style={styles.triangleRow}>
               {/* Diagonal dropdown button */}
               <Pressable
                 onPress={() => setShowDiagonalPicker(true)}
-                style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === 'diagonalKey' ? '#3c87f7' : theme.backgroundSelected }]}
+                style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === 'diagonalKey' ? theme.primary : theme.borderStrong }]}
               >
                 <ThemedText type="small" style={[styles.triangleRowLabel, { fontSize: 13, marginRight: 2 }]}>
                   {diagonalKey}
@@ -1072,7 +1078,7 @@ export default function HomeScreen() {
                     {
                       backgroundColor: theme.backgroundElement,
                       color: theme.text,
-                      borderColor: activeField === 'diagonal' ? '#3c87f7' : '#000000ff',
+                      borderColor: activeField === 'diagonal' ? theme.primary : theme.borderStrong,
                       paddingRight: 28,
                     },
                   ]}
@@ -1109,12 +1115,12 @@ export default function HomeScreen() {
                 style={[styles.modalContent, { backgroundColor: theme.background }]}
                 onPress={() => { }}
               >
-                <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                <View style={[styles.modalHeader, { borderBottomColor: theme.borderStrong }]}>
                   <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
                     Select Diagonal
                   </ThemedText>
                   <Pressable onPress={() => setShowDiagonalPicker(false)}>
-                    <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                    <ThemedText type="small" style={{ color: theme.textLink, fontWeight: '700', fontSize: 15 }}>
                       Done
                     </ThemedText>
                   </Pressable>
@@ -1123,32 +1129,32 @@ export default function HomeScreen() {
                   const isSelected = diagonalKey === key;
                   return (
                     <Pressable
-                      key={key}
-                      onPress={() => {
-                        setDiagonalKey(key as 'AC' | 'BD');
-                        shapeDiagonalKeyCache[selectedShape] = key as 'AC' | 'BD';
-                        setShowDiagonalPicker(false);
-                      }}
-                      style={[
-                        styles.modalOptionRow,
-                        isSelected && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
-                      ]}
-                    >
-                      <ThemedText
-                        type="default"
-                        style={{
-                          color: isSelected ? '#3c87f7' : theme.text,
-                          fontWeight: isSelected ? '700' : '400',
-                        }}
-                      >
-                        {key === 'AC' ? 'A — C' : 'B — D'}
-                      </ThemedText>
-                      {isSelected && (
-                        <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>
-                          ✓
-                        </ThemedText>
-                      )}
-                    </Pressable>
+                       key={key}
+                       onPress={() => {
+                         setDiagonalKey(key as 'AC' | 'BD');
+                         shapeDiagonalKeyCache[selectedShape] = key as 'AC' | 'BD';
+                         setShowDiagonalPicker(false);
+                       }}
+                       style={[
+                         styles.modalOptionRow,
+                         isSelected && { backgroundColor: theme.backgroundSelected },
+                       ]}
+                     >
+                       <ThemedText
+                         type="default"
+                         style={{
+                           color: theme.text,
+                           fontWeight: isSelected ? '700' : '400',
+                         }}
+                       >
+                         {key === 'AC' ? 'A — C' : 'B — D'}
+                       </ThemedText>
+                       {isSelected && (
+                         <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                           ✓
+                         </ThemedText>
+                       )}
+                     </Pressable>
                   );
                 })}
               </Pressable>
@@ -1165,7 +1171,7 @@ export default function HomeScreen() {
         <View>
           {/* Side count controls */}
           <View style={styles.polygonSideCountRow}>
-            <Pressable
+            <AnimatedPressable
               onPress={() => {
                 if (polygonSideCount > 3) {
                   const newCount = polygonSideCount - 1;
@@ -1184,14 +1190,14 @@ export default function HomeScreen() {
                   shapePolygonDiagKeysCache[selectedShape] = newKeys;
                 }
               }}
-              style={[styles.polygonCountBtn, { opacity: polygonSideCount > 3 ? 1 : 0.3 }]}
+              style={[styles.polygonCountBtn, { backgroundColor: theme.primary, opacity: polygonSideCount > 3 ? 1 : 0.3 }]}
             >
-              <ThemedText type="defaultSemiBold" style={styles.polygonCountBtnText}>−</ThemedText>
-            </Pressable>
+              <ThemedText type="defaultSemiBold" style={[styles.polygonCountBtnText, { color: theme.onPrimary }]}>−</ThemedText>
+            </AnimatedPressable>
             <ThemedText type="defaultSemiBold" style={styles.polygonCountLabel}>
               {polygonSideCount} sides
             </ThemedText>
-            <Pressable
+            <AnimatedPressable
               onPress={() => {
                 if (polygonSideCount < 20) {
                   const newCount = polygonSideCount + 1;
@@ -1210,10 +1216,10 @@ export default function HomeScreen() {
                   shapePolygonDiagKeysCache[selectedShape] = newKeys;
                 }
               }}
-              style={[styles.polygonCountBtn, { opacity: polygonSideCount < 20 ? 1 : 0.3 }]}
+              style={[styles.polygonCountBtn, { backgroundColor: theme.primary, opacity: polygonSideCount < 20 ? 1 : 0.3 }]}
             >
-              <ThemedText type="defaultSemiBold" style={styles.polygonCountBtnText}>+</ThemedText>
-            </Pressable>
+              <ThemedText type="defaultSemiBold" style={[styles.polygonCountBtnText, { color: theme.onPrimary }]}>+</ThemedText>
+            </AnimatedPressable>
           </View>
 
           {/* Side input fields */}
@@ -1231,7 +1237,7 @@ export default function HomeScreen() {
                         {
                           backgroundColor: theme.backgroundElement,
                           color: theme.text,
-                          borderColor: activeField === `polySide${i}` ? '#3c87f7' : '#000000ff',
+                          borderColor: activeField === `polySide${i}` ? theme.primary : theme.borderStrong,
                         },
                       ]}
                       value={polygonSides[i] || ''}
@@ -1262,7 +1268,7 @@ export default function HomeScreen() {
             const allDiagonals = generatePolygonDiagonals(polygonSideCount);
             const filledCount = polygonDiagKeys.filter(k => polygonDiagonals[k]).length;
             return (
-              <View style={[styles.diagonalsSection, { marginTop: Spacing.three, borderTopWidth: 1, borderTopColor: theme.backgroundSelected, paddingTop: Spacing.three }]}>
+              <View style={[styles.diagonalsSection, { marginTop: Spacing.three, borderTopWidth: 1, borderTopColor: theme.borderStrong, paddingTop: Spacing.three }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <ThemedText type="smallBold" style={styles.diagonalsTitle}>
                     Diagonals
@@ -1282,7 +1288,7 @@ export default function HomeScreen() {
                         {/* Dropdown button for this slot */}
                         <Pressable
                           onPress={() => setActiveDiagSlot(slotIdx)}
-                          style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === `polyDiagSlot${slotIdx}` ? '#3c87f7' : theme.backgroundSelected }]}
+                          style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === `polyDiagSlot${slotIdx}` ? theme.primary : theme.borderStrong }]}
                         >
                           <ThemedText type="small" style={[styles.triangleRowLabel, { fontSize: 12, marginRight: 2, minWidth: 28 }]}>
                             {diagKey}
@@ -1298,7 +1304,7 @@ export default function HomeScreen() {
                               {
                                 backgroundColor: theme.backgroundElement,
                                 color: theme.text,
-                                borderColor: isActive ? '#3c87f7' : '#000000ff',
+                                borderColor: isActive ? theme.primary : theme.borderStrong,
                               },
                             ]}
                             value={polygonDiagonals[diagKey] || ''}
@@ -1341,7 +1347,7 @@ export default function HomeScreen() {
                   <ThemedText
                     type="small"
                     style={{
-                      color: filledCount >= diagCount ? '#3c87f7' : '#888',
+                      color: filledCount >= diagCount ? theme.primary : theme.textSecondary,
                       fontWeight: '600',
                       fontSize: 11,
                     }}
@@ -1369,14 +1375,14 @@ export default function HomeScreen() {
                           <ThemedText type="small" style={{ fontSize: 10, fontWeight: '600', minWidth: 28 }}>
                             {key}
                           </ThemedText>
-                          <ThemedText type="small" style={{ fontSize: 10, color: match ? '#3c87f7' : '#ff4d4f' }}>
+                          <ThemedText type="small" style={{ fontSize: 10, color: match ? theme.primary : theme.error }}>
                             you: {userVal.toFixed(1)}m
                           </ThemedText>
                           <ThemedText type="small" style={{ fontSize: 10, color: theme.textSecondary }}>
                             vs {computed.toFixed(1)}m
                           </ThemedText>
                           {!match && (
-                            <ThemedText type="small" style={{ fontSize: 9, color: '#ff4d4f' }}>
+                            <ThemedText type="small" style={{ fontSize: 9, color: theme.error }}>
                               Δ {diff.toFixed(1)}
                             </ThemedText>
                           )}
@@ -1401,12 +1407,12 @@ export default function HomeScreen() {
                       style={[styles.modalContent, { backgroundColor: theme.background }]}
                       onPress={() => {}}
                     >
-                      <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                      <View style={[styles.modalHeader, { borderBottomColor: theme.borderStrong }]}>
                         <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
                           Pick Diagonal for Slot {activeDiagSlot !== null ? activeDiagSlot + 1 : ''}
                         </ThemedText>
                         <Pressable onPress={() => setActiveDiagSlot(null)}>
-                          <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                          <ThemedText type="small" style={{ color: theme.textLink, fontWeight: '700', fontSize: 15 }}>
                             Done
                           </ThemedText>
                         </Pressable>
@@ -1436,14 +1442,14 @@ export default function HomeScreen() {
                             }}
                             style={[
                               styles.modalOptionRow,
-                              (isSelected || isUsed) && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
+                              (isSelected || isUsed) && { backgroundColor: theme.backgroundSelected },
                             ]}
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, flex: 1 }}>
                               <ThemedText
                                 type="default"
                                 style={{
-                                  color: isUsed ? theme.textSecondary : (isSelected ? '#3c87f7' : theme.text),
+                                  color: isUsed ? theme.textSecondary : (isSelected ? theme.textLink : theme.text),
                                   fontWeight: isSelected ? '700' : '400',
                                   textDecorationLine: isUsed ? 'line-through' : 'none',
                                 }}
@@ -1456,13 +1462,13 @@ export default function HomeScreen() {
                                 </ThemedText>
                               )}
                               {polygonDiagonals[diag.key] && !isUsed && (
-                                <ThemedText type="small" style={{ color: '#3c87f7', fontSize: 11 }}>
+                                <ThemedText type="small" style={{ color: theme.textLink, fontSize: 11 }}>
                                   = {polygonDiagonals[diag.key]}m
                                 </ThemedText>
                               )}
                             </View>
                             {isSelected && (
-                              <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>✓</ThemedText>
+                              <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>✓</ThemedText>
                             )}
                           </Pressable>
                         );
@@ -1492,7 +1498,7 @@ export default function HomeScreen() {
                   {
                     backgroundColor: theme.backgroundElement,
                     color: theme.text,
-                    borderColor: activeField === 'diameter' ? '#3c87f7' : '#000000ff',
+                    borderColor: activeField === 'diameter' ? theme.primary : theme.borderStrong,
                   },
                 ]}
                 value={circleDiameter}
@@ -1554,7 +1560,7 @@ export default function HomeScreen() {
                     {
                       backgroundColor: theme.backgroundElement,
                       color: theme.text,
-                      borderColor: activeField === f.key ? '#3c87f7' : theme.backgroundSelected,
+                      borderColor: activeField === f.key ? theme.primary : theme.borderStrong,
                       paddingRight: 28,
                     },
                   ]}
@@ -1681,12 +1687,25 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Radial Wash Background */}
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <Svg width="100%" height={300} style={{ position: 'absolute', top: 0, left: 0 }}>
+          <Defs>
+            <RadialGradient id="header-wash" cx="50%" cy="0%" r="50%" fx="50%" fy="0%">
+              <Stop offset="0%" stopColor={isDark ? '#151624' : '#e0efff'} stopOpacity={isDark ? '0.6' : '0.7'} />
+              <Stop offset="100%" stopColor={isDark ? '#0d0e12' : '#f9fafb'} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#header-wash)" />
+        </Svg>
+      </View>
+
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         {/* Top bar — shape . unit */}
-        <View style={[styles.compactHeader, { backgroundColor: theme.backgroundElement, borderBottomColor: theme.backgroundSelected }]}>
+        <View style={[styles.compactHeader, { backgroundColor: 'transparent', borderBottomColor: theme.borderStrong }]}>
           <Pressable onPress={() => router.back()} style={styles.compactHeaderInner}>
-            <ThemedText type="default" style={[styles.compactHeaderText, { color: '#3c87f7' }]}>
-              {selectedShape === 'right-angled-triangle' ? 'Right-angled Triangle' : selectedShape === 'scalene-triangle' ? 'Scalene Triangle' : selectedShape === 'quadrilateral' ? 'Quadrilateral' : selectedShape === 'polygon' ? 'Polygon' : selectedShape === 'circle' ? 'Circle' : selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
+            <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.primary }]}>
+              {selectedShape === 'right-angled-triangle' ? 'Right Triangle' : selectedShape === 'scalene-triangle' ? 'Scalene Triangle' : selectedShape === 'quadrilateral' ? 'Quadrilateral' : selectedShape === 'polygon' ? 'Polygon' : selectedShape === 'circle' ? 'Circle' : selectedShape.charAt(0).toUpperCase() + selectedShape.slice(1)}
             </ThemedText>
             <ThemedText type="default" style={[styles.compactHeaderText, { color: theme.textSecondary, marginHorizontal: 6 }]}>
               ·
@@ -1725,21 +1744,21 @@ export default function HomeScreen() {
                 <ThemedText type="smallBold" style={styles.cardTitle}>
                   Enter Dimensions
                 </ThemedText>
-                <Pressable
+                <AnimatedPressable
                   onPress={() => setInputs({})}
                   style={styles.clearButton}
                 >
                   <ThemedText type="small" style={{ color: '#ff4d4f' }}>
                     Clear All
                   </ThemedText>
-                </Pressable>
+                </AnimatedPressable>
               </View>
               {renderInputFields()}
             </View>
           </View>
 
           {/* Live Result and Step-by-Step Solution */}
-          <View style={[styles.card, styles.resultCard, { borderColor: '#3c87f7' }]}>
+          <View style={[styles.card, styles.resultCard, { borderColor: theme.primary }]}>
             <View style={styles.resultContainer}>
               {calculationResult.hasInputs ? (
                 <View>
@@ -1758,29 +1777,29 @@ export default function HomeScreen() {
                   ) : (
                     selectedShape === 'quadrilateral' && !inputs.diagonal && !proceedWithoutDiagonal ? (
                       <View style={styles.proceedContainer}>
-                        <Pressable
+                        <AnimatedPressable
                           onPress={() => {
                             setProceedWithoutDiagonal(true);
                             shapeProceedNoDiagCache[selectedShape] = true;
                           }}
-                          style={styles.proceedButton}
+                          style={[styles.proceedButton, { backgroundColor: theme.primary }]}
                         >
-                          <ThemedText type="defaultSemiBold" style={styles.proceedButtonText}>
+                          <ThemedText type="defaultSemiBold" style={[styles.proceedButtonText, { color: theme.onPrimary }]}>
                             Proceed without diagonal
                           </ThemedText>
-                        </Pressable>
+                        </AnimatedPressable>
                       </View>
                     ) : selectedShape === 'polygon' && polygonSideCount >= 4 &&
                       calculationResult.hasInputs && !proceedWithoutPolygonDiagonals ? (
                       <View style={styles.proceedContainer}>
-                        <Pressable
+                        <AnimatedPressable
                           onPress={() => setProceedWithoutPolygonDiagonals(true)}
-                          style={styles.proceedButton}
+                          style={[styles.proceedButton, { backgroundColor: theme.primary }]}
                         >
-                          <ThemedText type="defaultSemiBold" style={styles.proceedButtonText}>
+                          <ThemedText type="defaultSemiBold" style={[styles.proceedButtonText, { color: theme.onPrimary }]}>
                             Proceed without diagonals
                           </ThemedText>
-                        </Pressable>
+                        </AnimatedPressable>
                       </View>
                     ) : (
                       <View style={styles.invalidContainer}>
@@ -1856,7 +1875,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   badge: {
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#171717',
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Spacing.two,
@@ -1867,22 +1886,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   card: {
-    padding: Spacing.one,
-    borderRadius: Spacing.four,
-    borderWidth: 1.5,
-    borderColor: 'rgba(128,128,128,0.15)',
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.12)',
     gap: Spacing.three,
+    backgroundColor: 'transparent',
   },
   diagramCard: {
-    paddingVertical: 0,
-    paddingHorizontal: Spacing.one,
-    borderRadius: Spacing.four,
-    borderWidth: 2,
-    borderColor: '#3c87f7',
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.12)',
     gap: Spacing.one,
+    backgroundColor: 'transparent',
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     opacity: 0.8,
   },
   formHeaderRow: {
@@ -1911,12 +1935,12 @@ const styles = StyleSheet.create({
     minWidth: 52,
   },
   textInput: {
-    height: 42,
-    borderWidth: 1.5,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.two,
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
     paddingVertical: 0,
-    fontSize: 16,
+    fontSize: 15,
     flex: 1,
   },
   inputSuffix: {
@@ -1978,7 +2002,6 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     fontSize: 14,
-    color: '#3c87f7',
   },
   resultContainer: {
     minHeight: 100,
@@ -1986,7 +2009,6 @@ const styles = StyleSheet.create({
   },
   resultValue: {
     fontWeight: '700',
-    color: '#3c87f7',
   },
   resultUnit: {
     fontWeight: '600',
@@ -2052,32 +2074,34 @@ const styles = StyleSheet.create({
   },
   totalSqFtLabel: {
     fontSize: 15,
-    color: '#3c87f7',
   },
 
-  // Conversions single column list
   conversionsSection: {
-    marginTop: 16,
+    marginTop: 20,
   },
-  conversionsList: {
-    // gap: Spacing.one,
-    // marginTop: Spacing.two,
-  },
-  conversionRow: {
+  conversionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  conversionCard: {
+    width: '48%',
+    flexGrow: 1,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
+    gap: 4,
   },
-  conversionLabel: {
-    fontSize: 15,
+  conversionCardLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    opacity: 0.6,
+    letterSpacing: 0.5,
   },
-  conversionValue: {
-    fontSize: 15,
-    color: '#3c87f7',
+  conversionCardValue: {
+    fontSize: 16,
+    fontWeight: '700',
   },
 
   // Diagonal section styles
@@ -2140,7 +2164,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   proceedButton: {
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#000000',
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.six,
     borderRadius: Spacing.three,
@@ -2163,7 +2187,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#3c87f7',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
