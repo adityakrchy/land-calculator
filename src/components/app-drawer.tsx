@@ -43,16 +43,16 @@ const NAV_ITEMS: DrawerItem[] = [
     iconSource: require('@/assets/images/tabIcons/home.png'),
   },
   {
+    name: 'batwara',
+    label: 'Batwara',
+    path: '/batwara',
+    iconSource: require('@/assets/images/tabIcons/plot.png'),
+  },
+  {
     name: 'converter',
     label: 'Converter',
     path: '/converter',
     iconSource: require('@/assets/images/tabIcons/home.png'),
-  },
-  {
-    name: 'plot',
-    label: 'Plot',
-    path: '/plot',
-    iconSource: require('@/assets/images/tabIcons/plot.png'),
   },
   {
     name: 'explore',
@@ -371,7 +371,7 @@ export default function AppDrawer({ children }: { children: React.ReactNode }) {
         ]}
       >
         <ThemedText type="small" themeColor="textSecondary">
-          © 2026 Antigravity
+          © 2026 Bhu Maapi
         </ThemedText>
       </View>
     </View>

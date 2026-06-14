@@ -181,6 +181,51 @@ export function calculateArea(points: Point[], sides: number[]): number {
 }
 
 /**
+ * Calculates quadrilateral area by splitting it into two triangles using a given diagonal.
+ * Returns total area (sum of both triangle areas via Heron's formula) and whether the split is valid.
+ */
+export function calculateQuadrilateralByDiagonal(
+  sides: [number, number, number, number], // [AB, BC, CD, DA]
+  diagonal: number,
+  diagonalKey: 'AC' | 'BD'
+): { area: number; valid: boolean; triangles: [number, number, number][] } {
+  const [s0, s1, s2, s3] = sides;
+
+  let tri1: [number, number, number];
+  let tri2: [number, number, number];
+
+  if (diagonalKey === 'AC') {
+    // Triangle ABC: AB(s0), BC(s1), AC(diagonal)
+    tri1 = [s0, s1, diagonal];
+    // Triangle ADC: CD(s2), DA(s3), AC(diagonal) — vertices C-D-A, sides CD, DA, CA
+    tri2 = [s2, s3, diagonal];
+  } else {
+    // Triangle ABD: AB(s0), DA(s3), BD(diagonal)
+    tri1 = [s0, s3, diagonal];
+    // Triangle BCD: BC(s1), CD(s2), BD(diagonal)
+    tri2 = [s1, s2, diagonal];
+  }
+
+  // Validate both triangles using triangle inequality
+  for (const t of [tri1, tri2]) {
+    const [a, b, c] = t;
+    if (a <= 0 || b <= 0 || c <= 0) return { area: 0, valid: false, triangles: [tri1, tri2] };
+    if (a + b <= c || a + c <= b || b + c <= a) return { area: 0, valid: false, triangles: [tri1, tri2] };
+  }
+
+  // Heron's formula
+  const heron = (a: number, b: number, c: number) => {
+    const s = (a + b + c) / 2;
+    return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+  };
+
+  const area1 = heron(tri1[0], tri1[1], tri1[2]);
+  const area2 = heron(tri2[0], tri2[1], tri2[2]);
+
+  return { area: area1 + area2, valid: true, triangles: [tri1, tri2] };
+}
+
+/**
  * Computes interior angles in degrees for each vertex.
  */
 export function calculateInteriorAngles(points: Point[]): number[] {

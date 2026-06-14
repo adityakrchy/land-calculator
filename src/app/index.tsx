@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useState } from 'react';
 import {
   BackHandler,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { calculateArea, calculateInteriorAngles, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
+import { calculateArea, calculateInteriorAngles, calculateQuadrilateralByDiagonal, generatePolygon, generateTriangle, validatePolygonSides } from '@/utils/geometry';
 
 type ShapeType = 'triangle' | 'right-angled-triangle' | 'scalene-triangle' | 'quadrilateral';
 
@@ -58,6 +59,8 @@ function parseDhurFromHandUnit(handUnit?: string, customDhurSqFt?: string): { ft
 
 // In-memory cache: persists inputs per shape across component re-mounts during navigation
 const shapeInputsCache: Record<string, InputFields> = {};
+const shapeDiagonalKeyCache: Record<string, 'AC' | 'BD'> = {};
+const shapeProceedNoDiagCache: Record<string, boolean> = {};
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ unit?: string; shape?: string; handUnit?: string; customDhurSqFt?: string }>();
@@ -68,6 +71,9 @@ export default function HomeScreen() {
   const [customDhurSqFt, setCustomDhurSqFt] = useState<string>('');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputFields>({});
+  const [diagonalKey, setDiagonalKey] = useState<'AC' | 'BD'>('AC');
+  const [showDiagonalPicker, setShowDiagonalPicker] = useState(false);
+  const [proceedWithoutDiagonal, setProceedWithoutDiagonal] = useState(false);
 
   // Redirect to setup if no params provided
   useEffect(() => {
@@ -87,6 +93,16 @@ export default function HomeScreen() {
     const cached = shapeInputsCache[params.shape];
     if (cached && Object.keys(cached).length > 0) {
       setInputs(cached);
+    }
+    const cachedKey = shapeDiagonalKeyCache[params.shape];
+    if (cachedKey) {
+      setDiagonalKey(cachedKey);
+    }
+    const cachedProceed = shapeProceedNoDiagCache[params.shape];
+    if (cachedProceed) {
+      setProceedWithoutDiagonal(true);
+    } else {
+      setProceedWithoutDiagonal(false);
     }
   }, [params.shape]);
 
@@ -115,6 +131,12 @@ export default function HomeScreen() {
     setInputs(newInputs);
     // Persist to in-memory cache so it survives component re-mounts during navigation
     shapeInputsCache[selectedShape] = newInputs;
+
+    // If user starts typing a diagonal, reset the "proceed without diagonal" flag
+    if (field === 'diagonal' && formattedValue) {
+      setProceedWithoutDiagonal(false);
+      shapeProceedNoDiagCache[selectedShape] = false;
+    }
   };
 
   // Parse dhur from the selected hand unit
@@ -345,10 +367,26 @@ export default function HomeScreen() {
         hasInputs = !isNaN(s0) && !isNaN(s1) && !isNaN(s2) && !isNaN(s3);
 
         if (hasInputs && s0 > 0 && s1 > 0 && s2 > 0 && s3 > 0) {
-          if (validatePolygonSides([s0, s1, s2, s3])) {
+          const diagVal = unit === 'ft' ? parseSide(inputs.diagonal) : parseAsNaN(inputs.diagonal);
+          const hasDiagonal = !isNaN(diagVal) && diagVal > 0 && diagonalKey;
+
+          if (hasDiagonal) {
+            // Calculate using Heron's formula (diagonal + two triangles)
+            const result = calculateQuadrilateralByDiagonal([s0, s1, s2, s3], diagVal, diagonalKey);
+            if (result.valid) {
+              isValid = true;
+              area = result.area;
+            }
+          } else if (proceedWithoutDiagonal && validatePolygonSides([s0, s1, s2, s3])) {
+            // User explicitly chose to proceed without a diagonal — use shoelace
             isValid = true;
             const points = generatePolygon([s0, s1, s2, s3]);
             area = calculateArea(points, [s0, s1, s2, s3]);
+          }
+
+          // Compute geometry display data regardless of method used
+          if (isValid) {
+            const points = generatePolygon([s0, s1, s2, s3]);
             const angles = calculateInteriorAngles(points);
             solvedQuad = {
               a: s0, b: s1, c: s2, d: s3,
@@ -387,7 +425,7 @@ export default function HomeScreen() {
     const finalValid = isValid && (dhurInfo !== null);
 
     return { area, areaInSqM, sqFt, isValid: finalValid, isDhurValid, dhurSqFt, hasInputs, solvedTriangle, solvedQuad };
-  }, [selectedShape, inputs, unit, dhurInfo]);
+  }, [selectedShape, inputs, unit, dhurInfo, diagonalKey, proceedWithoutDiagonal]);
 
   const renderAreaConversions = () => {
     if (!calculationResult.isValid) return null;
@@ -856,6 +894,113 @@ export default function HomeScreen() {
               </View>
             );
           })}
+
+          {/* Diagonal row — same layout as side rows, dropdown for diagonal selection */}
+          <><View style={[styles.dividerLine, { backgroundColor: theme.backgroundSelected }]} />
+            <View style={styles.triangleRow}>
+              {/* Diagonal dropdown button */}
+              <Pressable
+                onPress={() => setShowDiagonalPicker(true)}
+                style={[styles.diagonalDropdownBtn, { backgroundColor: theme.backgroundElement, borderColor: activeField === 'diagonalKey' ? '#3c87f7' : theme.backgroundSelected }]}
+              >
+                <ThemedText type="small" style={[styles.triangleRowLabel, { fontSize: 13, marginRight: 2 }]}>
+                  {diagonalKey}
+                </ThemedText>
+                <ThemedText type="small" style={{ fontSize: 9, color: theme.textSecondary }}>
+                  ▼
+                </ThemedText>
+              </Pressable>
+
+              {/* Diagonal length input */}
+              <View style={{ position: 'relative', flex: 1 }}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      color: theme.text,
+                      borderColor: activeField === 'diagonal' ? '#3c87f7' : '#000000ff',
+                      paddingRight: 28,
+                    },
+                  ]}
+                  value={inputs.diagonal || ''}
+                  onChangeText={val => handleInputChange('diagonal', val)}
+                  placeholder={`0 ${unitSuffix}`}
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  onFocus={() => setActiveField('diagonal')}
+                  onBlur={() => setActiveField(null)}
+                />
+              </View>
+
+              {/* Empty spacer where angle label would be */}
+              <View style={{ width: 28 }} />
+
+              {/* Empty spacer where angle value box would be */}
+              <View style={{ width: 72 }} />
+            </View>
+          </>
+
+          {/* Diagonal picker modal */}
+          <Modal
+            visible={showDiagonalPicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowDiagonalPicker(false)}
+          >
+            <Pressable
+              style={styles.modalOverlay}
+              onPress={() => setShowDiagonalPicker(false)}
+            >
+              <Pressable
+                style={[styles.modalContent, { backgroundColor: theme.background }]}
+                onPress={() => { }}
+              >
+                <View style={[styles.modalHeader, { borderBottomColor: theme.backgroundSelected }]}>
+                  <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
+                    Select Diagonal
+                  </ThemedText>
+                  <Pressable onPress={() => setShowDiagonalPicker(false)}>
+                    <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700', fontSize: 15 }}>
+                      Done
+                    </ThemedText>
+                  </Pressable>
+                </View>
+                {['AC', 'BD'].map((key) => {
+                  const isSelected = diagonalKey === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => {
+                        setDiagonalKey(key as 'AC' | 'BD');
+                        shapeDiagonalKeyCache[selectedShape] = key as 'AC' | 'BD';
+                        setShowDiagonalPicker(false);
+                      }}
+                      style={[
+                        styles.modalOptionRow,
+                        isSelected && { backgroundColor: 'rgba(60, 135, 247, 0.1)' },
+                      ]}
+                    >
+                      <ThemedText
+                        type="default"
+                        style={{
+                          color: isSelected ? '#3c87f7' : theme.text,
+                          fontWeight: isSelected ? '700' : '400',
+                        }}
+                      >
+                        {key === 'AC' ? 'A — C' : 'B — D'}
+                      </ThemedText>
+                      {isSelected && (
+                        <ThemedText type="small" style={{ color: '#3c87f7', fontWeight: '700' }}>
+                          ✓
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </Pressable>
+            </Pressable>
+          </Modal>
         </View>
       );
     }
@@ -1051,6 +1196,8 @@ export default function HomeScreen() {
                 activeField={activeField}
                 sides={sideData.sides}
                 sideLabels={sideData.sideLabels}
+                diagonal={selectedShape === 'quadrilateral' ? inputs.diagonal : undefined}
+                diagonalKey={selectedShape === 'quadrilateral' ? diagonalKey : undefined}
               />
             </View>
 
@@ -1090,15 +1237,30 @@ export default function HomeScreen() {
                       </View>
                     </>
                   ) : (
-                    <View style={styles.invalidContainer}>
-                      <SymbolView name="exclamationmark.triangle.fill" size={24} tintColor="#ff4d4f" />
-                      <ThemedText style={styles.invalidText}>
-                        {calculationResult.isDhurValid
-                          ? 'Invalid Geometry Constraint'
-                          : 'No local unit selected. Please choose a hand unit or Standard in setup.'}
-                      </ThemedText>
-                    </View>
-                  )}
+                    selectedShape === 'quadrilateral' && !inputs.diagonal && !proceedWithoutDiagonal ? (
+                      <View style={styles.proceedContainer}>
+                        <Pressable
+                          onPress={() => {
+                            setProceedWithoutDiagonal(true);
+                            shapeProceedNoDiagCache[selectedShape] = true;
+                          }}
+                          style={styles.proceedButton}
+                        >
+                          <ThemedText type="defaultSemiBold" style={styles.proceedButtonText}>
+                            Proceed without diagonal
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <View style={styles.invalidContainer}>
+                        <SymbolView name="exclamationmark.triangle.fill" size={24} tintColor="#ff4d4f" />
+                        <ThemedText style={styles.invalidText}>
+                          {calculationResult.isDhurValid
+                            ? 'Invalid Geometry Constraint'
+                            : 'No local unit selected. Please choose a hand unit or Standard in setup.'}
+                        </ThemedText>
+                      </View>
+                    ))}
 
                   {/* Converted Area Formats */}
                   {renderAreaConversions()}
@@ -1385,5 +1547,76 @@ const styles = StyleSheet.create({
   conversionValue: {
     fontSize: 15,
     color: '#3c87f7',
+  },
+
+  // Diagonal section styles
+  dividerLine: {
+    height: 1,
+    marginVertical: Spacing.two,
+  },
+  diagonalDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 52,
+    height: 42,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: 1.5,
+    gap: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    maxHeight: '70%',
+    borderTopLeftRadius: Spacing.four,
+    borderTopRightRadius: Spacing.four,
+    paddingBottom: Spacing.five,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  modalOptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Spacing.two,
+  },
+
+  // Proceed without diagonal
+  proceedContainer: {
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  proceedPrompt: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    opacity: 0.8,
+  },
+  proceedButton: {
+    backgroundColor: '#3c87f7',
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.six,
+    borderRadius: Spacing.three,
+  },
+  proceedButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

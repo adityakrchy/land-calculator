@@ -12,9 +12,11 @@ interface ShapeDiagramProps {
   activeField: string | null;
   sides: string[];
   sideLabels?: string[];
+  diagonal?: string;
+  diagonalKey?: 'AC' | 'BD';
 }
 
-export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDiagramProps) {
+export function ShapeDiagram({ shape, activeField, sides, sideLabels, diagonal, diagonalKey }: ShapeDiagramProps) {
   const theme = useTheme();
 
   const scaleVal = useSharedValue(1);
@@ -831,6 +833,22 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
             {renderDynamicLine(vC, vD, sideCHighlight, 'sideC')}
             {renderDynamicLine(vD, vA, sideDHighlight, 'sideD')}
 
+            {/* Diagonal line (rendered only when provided by user) */}
+            {diagonal && diagonalKey && isValidQuad && (
+              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Path
+                  d={diagonalKey === 'AC'
+                    ? `M ${vA.x} ${vA.y} L ${vC.x} ${vC.y}`
+                    : `M ${vB.x} ${vB.y} L ${vD.x} ${vD.y}`
+                  }
+                  stroke={activeField === 'diagonal' ? '#3c87f7' : 'rgba(60, 135, 247, 0.5)'}
+                  strokeWidth={activeField === 'diagonal' ? 2.5 : 1.5}
+                  strokeDasharray="6,4"
+                  fill="none"
+                />
+              </Svg>
+            )}
+
             {/* Labels for sides */}
             <View style={[styles.labelBox, { left: labelAB_pos.x - 25, top: labelAB_pos.y - 10, width: 50, backgroundColor: isSideAActive ? '#3c87f7' : theme.backgroundElement, borderColor: isSideAActive ? '#3c87f7' : 'rgba(120,120,120,0.2)' }]} pointerEvents="none">
               <RNText style={[styles.labelBoxText, { color: isSideAActive ? '#ffffff' : theme.text }]}>
@@ -852,6 +870,39 @@ export function ShapeDiagram({ shape, activeField, sides, sideLabels }: ShapeDia
                 {labelDAText}
               </RNText>
             </View>
+
+            {/* Diagonal label */}
+            {diagonal && diagonalKey && isValidQuad && (() => {
+              const diagMidX = diagonalKey === 'AC'
+                ? (vA.x + vC.x) / 2
+                : (vB.x + vD.x) / 2;
+              const diagMidY = diagonalKey === 'AC'
+                ? (vA.y + vC.y) / 2
+                : (vB.y + vD.y) / 2;
+              const cx = (vA.x + vB.x + vC.x + vD.x) / 4;
+              const cy = (vA.y + vB.y + vC.y + vD.y) / 4;
+              const dx = diagMidX - cx;
+              const dy = diagMidY - cy;
+              const len = Math.sqrt(dx * dx + dy * dy) || 1;
+              const labelX = diagMidX + (dx / len) * 18;
+              const labelY = diagMidY + (dy / len) * 18;
+              return (
+                <View style={[styles.labelBox, {
+                  left: labelX - 25,
+                  top: labelY - 10,
+                  width: 50,
+                  backgroundColor: activeField === 'diagonal' ? '#3c87f7' : theme.backgroundElement,
+                  borderColor: activeField === 'diagonal' ? '#3c87f7' : 'rgba(60,135,247,0.3)',
+                }]} pointerEvents="none">
+                  <RNText style={[styles.labelBoxText, {
+                    color: activeField === 'diagonal' ? '#ffffff' : '#3c87f7',
+                    fontSize: 10,
+                  }]}>
+                    {parseFloat(diagonal).toFixed(1)}
+                  </RNText>
+                </View>
+              );
+            })()}
 
             {/* Vertex labels */}
             <View style={[styles.vertexLabelBox, { left: vertexA_pos.x - 12, top: vertexA_pos.y - 10 }]} pointerEvents="none">
